@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { db } from '../services/firebaseConfig';
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
+// Quitamos la prop 'distancia' porque ya no la usaremos aquí adentro
 export const RegistrationForm = () => {
   const [formData, setFormData] = useState({
     nombre: '',
@@ -21,7 +22,6 @@ export const RegistrationForm = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validación básica
     if (!formData.nombre.trim() || !formData.telefono.trim() || !formData.fechaNacimiento) {
       alert("Por favor, completa todos los campos.");
       return;
@@ -53,6 +53,11 @@ export const RegistrationForm = () => {
         <h2 className="form-title">Crea tu Perfil</h2>
         <p className="form-subtitle">Únete y recibe beneficios exclusivos de Bistro.</p>
       </header>
+
+      {/* 
+          HEMOS ELIMINADO EL BLOQUE <div className="location-badge"> 
+          QUE ESTABA AQUÍ PARA EVITAR LA DUPLICIDAD.
+      */}
 
       <div className="form-group">
         <label htmlFor="nombre">Nombre Completo</label>

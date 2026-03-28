@@ -8,27 +8,37 @@ import './App.css';
 function App() {
   const [hasNotified, setHasNotified] = useState(false);
 
-  // 1. ESTADO DE CONFIGURACIÓN (Solo ubicación para el cálculo)
-  const [bistroLoc, setBistroLoc] = useState({ 
-    lat: 6.2442, 
-    lon: -75.5812, 
-    radioAviso: 100
-  });
+  // 1. ESTADO DE CONFIGURACIÓN (Inicia en null para recibir datos reales de Admin)
+  const [bistroLoc, setBistroLoc] = useState(null);
 
   useEffect(() => {
     const docRef = doc(db, "configuracion", "ubicacion");
+    
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
-        setBistroLoc(docSnap.data());
+        const data = docSnap.data();
+        console.log("Datos sincronizados desde Admin Panel:", data);
+        setBistroLoc(data); 
+      } else {
+        console.warn("No se encontró configuración en el Panel Admin");
       }
+    }, (error) => {
+      console.error("Error de conexión con Firebase:", error);
     });
+
     return () => unsubscribe(); 
   }, []);
 
-  const distancia = useLocation(bistroLoc.lat, bistroLoc.lon);
+  const distancia = useLocation(bistroLoc?.lat, bistroLoc?.lon);
+
+  const abrirMapa = () => {
+    if (!bistroLoc) return;
+    const url = `https://www.google.com/maps/search/?api=1&query=${bistroLoc.lat},${bistroLoc.lon}`;
+    window.open(url, '_blank');
+  };
 
   useEffect(() => {
-    if (distancia !== null && distancia <= bistroLoc.radioAviso && !hasNotified) {
+    if (bistroLoc && distancia !== null && distancia <= bistroLoc.radioAviso && !hasNotified) {
       if ("Notification" in window && Notification.permission === "granted") {
         new Notification("¡Ya casi llegas! 🥂", {
           body: `Estás a menos de ${bistroLoc.radioAviso}m de Bistro. ¡Pasa por tu sorpresa!`,
@@ -39,8 +49,8 @@ function App() {
       }
       setHasNotified(true);
     } 
-    if (distancia > 200) setHasNotified(false);
-  }, [distancia, hasNotified, bistroLoc.radioAviso]);
+    if (distancia > (bistroLoc?.radioAviso + 100 || 200)) setHasNotified(false);
+  }, [distancia, hasNotified, bistroLoc]);
 
   return (
     <div className="main-wrapper">
@@ -50,19 +60,24 @@ function App() {
         </h1>
       </header>
 
-      {distancia !== null && (
-        <div className={`proximity-badge ${distancia <= bistroLoc.radioAviso ? 'near' : ''} animate-fade-in`}>
+      {distancia !== null && bistroLoc ? (
+        <div 
+          className={`proximity-badge ${distancia <= bistroLoc.radioAviso ? 'near' : ''} animate-fade-in`}
+          onClick={abrirMapa}
+          style={{ cursor: 'pointer', userSelect: 'none', marginBottom: '2rem' }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', justifyContent: 'center' }}>
             <span style={{ fontSize: '1.5rem' }}>
               {distancia <= bistroLoc.radioAviso ? '✨' : '📍'}
             </span>
             <div style={{ textAlign: 'left' }}>
               <p style={{ margin: 0, fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', opacity: 0.5, letterSpacing: '0.1em' }}>
-                {distancia <= bistroLoc.radioAviso ? '¡HAS LLEGADO!' : 'ESTÁS A'}
+                {distancia <= bistroLoc.radioAviso ? '¡HAS LLEGADO!' : 'ESTÁS A (TOCA PARA VER)'}
               </p>
+              
               <p style={{ margin: 0, fontWeight: '900', color: 'var(--text-h)', fontSize: '1.2rem' }}>
                 {distancia >= 1000 
-                  ? `${(distancia / 1000).toLocaleString('de-DE', { maximumFractionDigits: 1 })} km` 
+                  ? `${(distancia / 1000).toFixed(1)} km` 
                   : `${Math.round(distancia)} metros`
                 }
               </p>
@@ -73,6 +88,10 @@ function App() {
               🎁 RECLAMA TU CORTESÍA EN BARRA
             </div>
           )}
+        </div>
+      ) : (
+        <div style={{ textAlign: 'center', padding: '2rem', opacity: 0.5, fontSize: '12px' }}>
+          Sincronizando ubicación...
         </div>
       )}
 
