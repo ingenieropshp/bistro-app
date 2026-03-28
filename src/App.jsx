@@ -9,50 +9,62 @@ function App() {
   const [hasNotified, setHasNotified] = useState(false);
   const [bistroLoc, setBistroLoc] = useState(null);
 
+  // 1. Sincronización con Firebase (Documento: 'ubicacion' en minúsculas)
   useEffect(() => {
+    // Importante: Asegurar que el path coincida exactamente con Firestore
     const docRef = doc(db, "configuracion", "ubicacion");
     
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        console.log("Datos sincronizados desde Admin Panel:", data);
-        setBistroLoc(data); 
+        // Solo actualizamos si tenemos datos válidos para evitar re-renders innecesarios
+        if (data && typeof data.lat === 'number') {
+          console.log("📍 Datos de ubicación recibidos:", data);
+          setBistroLoc(data);
+        }
       } else {
-        console.warn("No se encontró configuración en el Panel Admin");
+        console.warn("⚠️ No se encontró el documento 'configuracion/ubicacion'");
       }
     }, (error) => {
-      console.error("Error de conexión con Firebase:", error);
+      console.error("❌ Error Firebase:", error);
     });
 
     return () => unsubscribe(); 
   }, []);
 
-  // --- CORRECCIÓN AQUÍ: Desestructuramos el objeto que devuelve el hook ---
+  // 2. Hook de localización - Desestructuración correcta
   const { distance: distancia, error: geoError } = useLocation(bistroLoc?.lat, bistroLoc?.lon);
 
   const abrirMapa = () => {
-    if (!bistroLoc) return;
+    if (!bistroLoc?.lat) return;
     const url = `https://www.google.com/maps/search/?api=1&query=${bistroLoc.lat},${bistroLoc.lon}`;
     window.open(url, '_blank');
   };
 
+  // 3. Lógica de notificaciones y proximidad
   useEffect(() => {
-    // Verificamos que distancia sea un número válido antes de comparar
-    if (bistroLoc && typeof distancia === 'number' && distancia <= (bistroLoc.radioAviso || 800) && !hasNotified) {
-      if ("Notification" in window && Notification.permission === "granted") {
-        new Notification("¡Ya casi llegas! 🥂", {
-          body: `Estás a menos de ${bistroLoc.radioAviso}m de Bistro. ¡Pasa por tu sorpresa!`,
-          icon: "/favicon.ico"
-        });
-      } else if ("Notification" in window && Notification.permission !== "denied") {
-        Notification.requestPermission();
+    // Validamos que distancia sea número y bistroLoc no sea null
+    if (bistroLoc && typeof distancia === 'number') {
+      const radioAviso = Number(bistroLoc.radioAviso) || 800;
+
+      if (distancia <= radioAviso && !hasNotified) {
+        if ("Notification" in window) {
+          if (Notification.permission === "granted") {
+            new Notification("¡Ya casi llegas! 🥂", {
+              body: `Estás a menos de ${radioAviso}m de Bistro. ¡Pasa por tu sorpresa!`,
+              icon: "/favicon.ico"
+            });
+            setHasNotified(true);
+          } else if (Notification.permission !== "denied") {
+            Notification.requestPermission();
+          }
+        }
+      } 
+      
+      // Reset si se aleja más de 100m del radio
+      if (distancia > (radioAviso + 100)) {
+          setHasNotified(false);
       }
-      setHasNotified(true);
-    } 
-    
-    // Reset de notificación si se aleja
-    if (typeof distancia === 'number' && distancia > (bistroLoc?.radioAviso + 100 || 900)) {
-        setHasNotified(false);
     }
   }, [distancia, hasNotified, bistroLoc]);
 
@@ -60,30 +72,40 @@ function App() {
     <div className="main-wrapper">
       <header className="animate-fade-in" style={{ textAlign: 'center', marginBottom: '3rem', marginTop: '2rem' }}>
         <h1 className="bistro-title" style={{ fontSize: '3rem', fontWeight: '900', letterSpacing: '-0.05em' }}>
-         101 BISTRO<span style={{ color: 'var(--accent)' }}>.</span>
+          101 BISTRO<span style={{ color: 'var(--accent)' }}>.</span>
         </h1>
       </header>
 
-      {/* --- MANEJO DE ERRORES DE GPS --- */}
+      {/* Alerta de Error de GPS */}
       {geoError && (
-        <div style={{ color: '#ff4444', textAlign: 'center', fontSize: '10px', marginBottom: '1rem' }}>
-          ⚠️ {geoError === "User denied Geolocation" ? "Activa el GPS para ver tu distancia" : geoError}
+        <div style={{ 
+          background: 'rgba(255, 68, 68, 0.1)', 
+          color: '#ff4444', 
+          padding: '10px', 
+          borderRadius: '8px',
+          textAlign: 'center', 
+          fontSize: '11px', 
+          marginBottom: '1.5rem',
+          border: '1px solid #ff4444' 
+        }}>
+          ⚠️ {geoError.includes("denied") ? "Activa el GPS para disfrutar la experiencia" : geoError}
         </div>
       )}
 
-      {distancia !== null && bistroLoc ? (
+      {/* UI de Distancia mejorada con validación de tipo */}
+      {typeof distancia === 'number' && bistroLoc ? (
         <div 
-          className={`proximity-badge ${distancia <= bistroLoc.radioAviso ? 'near' : ''} animate-fade-in`}
+          className={`proximity-badge ${distancia <= (bistroLoc.radioAviso || 800) ? 'near' : ''} animate-fade-in`}
           onClick={abrirMapa}
           style={{ cursor: 'pointer', userSelect: 'none', marginBottom: '2rem' }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', justifyContent: 'center' }}>
             <span style={{ fontSize: '1.5rem' }}>
-              {distancia <= bistroLoc.radioAviso ? '✨' : '📍'}
+              {distancia <= (bistroLoc.radioAviso || 800) ? '✨' : '📍'}
             </span>
             <div style={{ textAlign: 'left' }}>
               <p style={{ margin: 0, fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', opacity: 0.5, letterSpacing: '0.1em' }}>
-                {distancia <= bistroLoc.radioAviso ? '¡HAS LLEGADO!' : 'ESTÁS A (TOCA PARA VER)'}
+                {distancia <= (bistroLoc.radioAviso || 800) ? '¡HAS LLEGADO!' : 'ESTÁS A (TOCA PARA VER)'}
               </p>
               
               <p style={{ margin: 0, fontWeight: '900', color: 'var(--text-h)', fontSize: '1.2rem' }}>
@@ -94,7 +116,7 @@ function App() {
               </p>
             </div>
           </div>
-          {distancia <= bistroLoc.radioAviso && (
+          {distancia <= (bistroLoc.radioAviso || 800) && (
             <div className="gift-label animate-pulse" style={{ marginTop: '0.5rem', fontSize: '11px', fontWeight: '800', color: 'var(--accent)' }}>
               🎁 RECLAMA TU CORTESÍA EN BARRA
             </div>
@@ -102,7 +124,11 @@ function App() {
         </div>
       ) : (
         <div style={{ textAlign: 'center', padding: '2rem', opacity: 0.5, fontSize: '12px' }}>
-          {geoError ? "Esperando señal GPS..." : "Sincronizando ubicación..."}
+          {!geoError ? (
+            <div className="loading-spinner">Sincronizando ubicación...</div>
+          ) : (
+            "Esperando señal GPS..."
+          )}
         </div>
       )}
 
