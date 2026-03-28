@@ -6,17 +6,13 @@ import { db } from './services/firebaseConfig';
 import './App.css';
 
 function App() {
-  const [view, setView] = useState('client'); 
   const [hasNotified, setHasNotified] = useState(false);
-  const [mostrarLogin, setMostrarLogin] = useState(false);
-  const [passwordInput, setPasswordInput] = useState("");
 
-  // 1. ESTADO DE CONFIGURACIÓN (Ahora incluye password)
+  // 1. ESTADO DE CONFIGURACIÓN (Solo ubicación para el cálculo)
   const [bistroLoc, setBistroLoc] = useState({ 
     lat: 6.2442, 
     lon: -75.5812, 
-    radioAviso: 100,
-    password: "2026" // Se cargará de Firebase
+    radioAviso: 100
   });
 
   useEffect(() => {
@@ -46,58 +42,9 @@ function App() {
     if (distancia > 200) setHasNotified(false);
   }, [distancia, hasNotified, bistroLoc.radioAviso]);
 
-  // --- LÓGICA DE ACCESO DINÁMICA ---
-  const verificarPassword = (e) => {
-    e.preventDefault();
-    // Compara con el password que bajó de Firebase
-    if (passwordInput === String(bistroLoc.password)) {
-      setView('admin');
-      setMostrarLogin(false);
-      setPasswordInput("");
-    } else {
-      alert("Contraseña incorrecta");
-    }
-  };
-
-  
-
   return (
     <div className="main-wrapper">
-      <div className="nav-container">
-        <button onClick={() => setMostrarLogin(true)} className="btn-admin-access">
-          <span className="icon-dot animate-pulse"></span>
-          <span>Panel Admin</span>
-        </button>
-      </div>
-
-      {mostrarLogin && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
-          backgroundColor: 'rgba(0,0,0,0.9)', zIndex: 1000,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
-        }}>
-          <div className="registration-card" style={{ maxWidth: '300px', textAlign: 'center' }}>
-            <h2 className="bistro-title" style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>Admin Access</h2>
-            <form onSubmit={verificarPassword}>
-              <input 
-                type="password" 
-                className="form-input"
-                placeholder="Contraseña..."
-                value={passwordInput}
-                onChange={(e) => setPasswordInput(e.target.value)}
-                autoFocus
-                style={{ textAlign: 'center', marginBottom: '1rem' }}
-              />
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button type="button" onClick={() => setMostrarLogin(false)} className="btn-submit" style={{ background: '#444' }}>Cancelar</button>
-                <button type="submit" className="btn-submit">Entrar</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      <header className="animate-fade-in" style={{ textAlign: 'center', marginBottom: '3rem' }}>
+      <header className="animate-fade-in" style={{ textAlign: 'center', marginBottom: '3rem', marginTop: '2rem' }}>
         <h1 className="bistro-title" style={{ fontSize: '3rem', fontWeight: '900', letterSpacing: '-0.05em' }}>
          101 BISTRO<span style={{ color: 'var(--accent)' }}>.</span>
         </h1>
@@ -133,7 +80,7 @@ function App() {
         <RegistrationForm />
       </main>
       
-      <footer style={{ marginTop: '4rem', opacity: 0.3, fontSize: '9px', letterSpacing: '0.4em', fontWeight: '900', textAlign: 'center' }}>
+      <footer style={{ marginTop: '4rem', opacity: 0.3, fontSize: '9px', letterSpacing: '0.4em', fontWeight: '900', textAlign: 'center', paddingBottom: '2rem' }}>
         BISTRO CONNECT SYSTEM
       </footer>
     </div>
