@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react'; 
 import { RegistrationForm } from './components/RegistrationForm';
-import { AdminPanel } from './components/AdminPanel'; 
 import { useLocation } from './hooks/useLocation';
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from './services/firebaseConfig'; 
-import './app.css';
+import './App.css';
 
 function App() {
   const [view, setView] = useState('client'); 
@@ -60,13 +59,7 @@ function App() {
     }
   };
 
-  if (view === 'admin') {
-    return (
-      <div className="animate-fade-in">
-        <AdminPanel alCerrar={() => setView('client')} />
-      </div>
-    );
-  }
+  
 
   return (
     <div className="main-wrapper">
@@ -106,7 +99,7 @@ function App() {
 
       <header className="animate-fade-in" style={{ textAlign: 'center', marginBottom: '3rem' }}>
         <h1 className="bistro-title" style={{ fontSize: '3rem', fontWeight: '900', letterSpacing: '-0.05em' }}>
-          BISTRO<span style={{ color: 'var(--accent)' }}>.</span>
+         101 BISTRO<span style={{ color: 'var(--accent)' }}>.</span>
         </h1>
       </header>
 

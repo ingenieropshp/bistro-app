@@ -107,7 +107,7 @@ export const RegistrationForm = () => {
             <span>Procesando...</span>
           </div>
         ) : (
-          'Unirme a Bistro'
+          'Unirme a 101 Bistro'
         )}
       </button>
       
