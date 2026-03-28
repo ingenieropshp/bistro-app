@@ -7,8 +7,6 @@ import './App.css';
 
 function App() {
   const [hasNotified, setHasNotified] = useState(false);
-
-  // 1. ESTADO DE CONFIGURACIÓN (Inicia en null para recibir datos reales de Admin)
   const [bistroLoc, setBistroLoc] = useState(null);
 
   useEffect(() => {
@@ -29,7 +27,8 @@ function App() {
     return () => unsubscribe(); 
   }, []);
 
-  const distancia = useLocation(bistroLoc?.lat, bistroLoc?.lon);
+  // --- CORRECCIÓN AQUÍ: Desestructuramos el objeto que devuelve el hook ---
+  const { distance: distancia, error: geoError } = useLocation(bistroLoc?.lat, bistroLoc?.lon);
 
   const abrirMapa = () => {
     if (!bistroLoc) return;
@@ -38,7 +37,8 @@ function App() {
   };
 
   useEffect(() => {
-    if (bistroLoc && distancia !== null && distancia <= bistroLoc.radioAviso && !hasNotified) {
+    // Verificamos que distancia sea un número válido antes de comparar
+    if (bistroLoc && typeof distancia === 'number' && distancia <= (bistroLoc.radioAviso || 800) && !hasNotified) {
       if ("Notification" in window && Notification.permission === "granted") {
         new Notification("¡Ya casi llegas! 🥂", {
           body: `Estás a menos de ${bistroLoc.radioAviso}m de Bistro. ¡Pasa por tu sorpresa!`,
@@ -49,7 +49,11 @@ function App() {
       }
       setHasNotified(true);
     } 
-    if (distancia > (bistroLoc?.radioAviso + 100 || 200)) setHasNotified(false);
+    
+    // Reset de notificación si se aleja
+    if (typeof distancia === 'number' && distancia > (bistroLoc?.radioAviso + 100 || 900)) {
+        setHasNotified(false);
+    }
   }, [distancia, hasNotified, bistroLoc]);
 
   return (
@@ -59,6 +63,13 @@ function App() {
          101 BISTRO<span style={{ color: 'var(--accent)' }}>.</span>
         </h1>
       </header>
+
+      {/* --- MANEJO DE ERRORES DE GPS --- */}
+      {geoError && (
+        <div style={{ color: '#ff4444', textAlign: 'center', fontSize: '10px', marginBottom: '1rem' }}>
+          ⚠️ {geoError === "User denied Geolocation" ? "Activa el GPS para ver tu distancia" : geoError}
+        </div>
+      )}
 
       {distancia !== null && bistroLoc ? (
         <div 
@@ -91,7 +102,7 @@ function App() {
         </div>
       ) : (
         <div style={{ textAlign: 'center', padding: '2rem', opacity: 0.5, fontSize: '12px' }}>
-          Sincronizando ubicación...
+          {geoError ? "Esperando señal GPS..." : "Sincronizando ubicación..."}
         </div>
       )}
 

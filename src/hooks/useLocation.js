@@ -5,8 +5,14 @@ export const useLocation = (targetLat, targetLon) => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // 1. CLÁUSULA DE GUARDA: No ejecutar si no hay coordenadas de destino (evita NaN)
-    if (targetLat === undefined || targetLat === null || targetLon === undefined || targetLon === null) {
+    // 1. CLÁUSULA DE GUARDA MEJORADA:
+    // Evita procesar si los valores son nulos, indefinidos, strings vacíos o "NaN"
+    const tLat = parseFloat(targetLat);
+    const tLon = parseFloat(targetLon);
+
+    if (isNaN(tLat) || isNaN(tLon)) {
+      console.warn("useLocation: Coordenadas de destino no válidas o cargando...");
+      setDistance(null);
       return;
     }
 
@@ -15,24 +21,18 @@ export const useLocation = (targetLat, targetLon) => {
       return;
     }
 
-    // Configuración para máxima precisión
     const options = {
-      enableHighAccuracy: true, // Usa GPS si está disponible
-      timeout: 15000,           // 15 segundos de espera
-      maximumAge: 0             // No usar datos viejos
+      enableHighAccuracy: true,
+      timeout: 15000,
+      maximumAge: 0
     };
 
-    // Usamos watchPosition para rastrear el movimiento en tiempo real
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
         const { latitude, longitude } = pos.coords;
         
         // --- FÓRMULA DE HAVERSINE ---
         const R = 6371000; // Radio de la Tierra en metros
-        
-        // Convertimos a números por seguridad (en caso de que Firebase envíe strings)
-        const tLat = Number(targetLat);
-        const tLon = Number(targetLon);
         
         const dLat = (tLat - latitude) * Math.PI / 180;
         const dLon = (tLon - longitude) * Math.PI / 180;
@@ -47,7 +47,6 @@ export const useLocation = (targetLat, targetLon) => {
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         const d = Math.round(R * c);
 
-        // Solo actualizamos si el número es válido
         if (!isNaN(d)) {
           setDistance(d);
           setError(null);
@@ -60,12 +59,10 @@ export const useLocation = (targetLat, targetLon) => {
       options
     );
 
-    // Limpieza al desmontar el componente
     return () => navigator.geolocation.clearWatch(watchId);
     
-    // El efecto se reinicia si las coordenadas de destino cambian en el Admin
   }, [targetLat, targetLon]);
 
-  // Retornamos la distancia (puedes retornar { distance, error } si quieres mostrar errores en UI)
-  return distance; 
+  // Retornamos tanto la distancia como el error para mejor diagnóstico
+  return { distance, error }; 
 };
