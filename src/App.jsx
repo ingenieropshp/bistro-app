@@ -11,13 +11,11 @@ function App() {
 
   // 1. Sincronización con Firebase (Documento: 'ubicacion' en minúsculas)
   useEffect(() => {
-    // Importante: Asegurar que el path coincida exactamente con Firestore
     const docRef = doc(db, "configuracion", "ubicacion");
     
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        // Solo actualizamos si tenemos datos válidos para evitar re-renders innecesarios
         if (data && typeof data.lat === 'number') {
           console.log("📍 Datos de ubicación recibidos:", data);
           setBistroLoc(data);
@@ -32,8 +30,11 @@ function App() {
     return () => unsubscribe(); 
   }, []);
 
-  // 2. Hook de localización - Desestructuración correcta
-  const { distance: distancia, error: geoError } = useLocation(bistroLoc?.lat, bistroLoc?.lon);
+  // 2. Hook de localización - Se añaden valores por defecto (null) para estabilidad
+  const { distance: distancia, error: geoError } = useLocation(
+    bistroLoc?.lat || null, 
+    bistroLoc?.lon || null
+  );
 
   const abrirMapa = () => {
     if (!bistroLoc?.lat) return;
@@ -43,7 +44,6 @@ function App() {
 
   // 3. Lógica de notificaciones y proximidad
   useEffect(() => {
-    // Validamos que distancia sea número y bistroLoc no sea null
     if (bistroLoc && typeof distancia === 'number') {
       const radioAviso = Number(bistroLoc.radioAviso) || 800;
 
@@ -61,7 +61,6 @@ function App() {
         }
       } 
       
-      // Reset si se aleja más de 100m del radio
       if (distancia > (radioAviso + 100)) {
           setHasNotified(false);
       }
@@ -72,7 +71,7 @@ function App() {
     <div className="main-wrapper">
       <header className="animate-fade-in" style={{ textAlign: 'center', marginBottom: '3rem', marginTop: '2rem' }}>
         <h1 className="bistro-title" style={{ fontSize: '3rem', fontWeight: '900', letterSpacing: '-0.05em' }}>
-          101 BISTRO<span style={{ color: 'var(--accent)' }}>.</span>
+           101 BISTRO<span style={{ color: 'var(--accent)' }}>.</span>
         </h1>
       </header>
 
@@ -92,8 +91,8 @@ function App() {
         </div>
       )}
 
-      {/* UI de Distancia mejorada con validación de tipo */}
-      {typeof distancia === 'number' && bistroLoc ? (
+      {/* UI de Distancia: Se asegura de mostrar datos solo cuando distancia es un número válido */}
+      {bistroLoc && typeof distancia === 'number' ? (
         <div 
           className={`proximity-badge ${distancia <= (bistroLoc.radioAviso || 800) ? 'near' : ''} animate-fade-in`}
           onClick={abrirMapa}
@@ -124,10 +123,10 @@ function App() {
         </div>
       ) : (
         <div style={{ textAlign: 'center', padding: '2rem', opacity: 0.5, fontSize: '12px' }}>
-          {!geoError ? (
-            <div className="loading-spinner">Sincronizando ubicación...</div>
-          ) : (
+          {geoError ? (
             "Esperando señal GPS..."
+          ) : (
+            <div className="loading-spinner">Sincronizando ubicación...</div>
           )}
         </div>
       )}
