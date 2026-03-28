@@ -3,8 +3,22 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
     <title>101 bistro-app</title>
+
+    <!-- 1. Enlace al manifiesto para que sea instalable -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- 2. Color de la barra de estado en Android -->
+    <meta name="theme-color" content="#8b5cf6" />
+
+    <!-- 3. Configuración específica para iPhone (iOS) -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="101 Bistro">
+    
+    <!-- Este es el icono que se verá en el menú del iPhone -->
+    <link rel="apple-touch-icon" href="/logo192.png">
   </head>
   <body>
     <div id="root"></div>
