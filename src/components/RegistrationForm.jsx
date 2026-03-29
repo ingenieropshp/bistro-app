@@ -2,11 +2,10 @@ import { useState } from 'react';
 import { db } from '../services/firebaseConfig';
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
-// Quitamos la prop 'distancia' porque ya no la usaremos aquí adentro
 export const RegistrationForm = () => {
   const [formData, setFormData] = useState({
     nombre: '',
-    telefono: '',
+    telefono: '', // Este campo debe coincidir con la regla de Firebase
     fechaNacimiento: ''
   });
   const [loading, setLoading] = useState(false);
@@ -22,6 +21,7 @@ export const RegistrationForm = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // Validación básica antes de intentar guardar
     if (!formData.nombre.trim() || !formData.telefono.trim() || !formData.fechaNacimiento) {
       alert("Por favor, completa todos los campos.");
       return;
@@ -29,18 +29,27 @@ export const RegistrationForm = () => {
 
     setLoading(true);
     try {
+      // IMPORTANTE: El objeto enviado debe tener 'nombre' y 'telefono' 
+      // para pasar la validación de tus reglas de Firestore.
       await addDoc(collection(db, "clientes"), {
         nombre: formData.nombre.trim(),
         telefono: formData.telefono.trim(),
         fechaNacimiento: formData.fechaNacimiento,
-        fechaRegistro: serverTimestamp() 
+        fechaRegistro: serverTimestamp(),
+        origen: "Web App" // Opcional: para saber de dónde vienen
       });
       
       alert("¡Gracias! Ya eres parte de Bistro Connect.");
       setFormData({ nombre: '', telefono: '', fechaNacimiento: '' }); 
     } catch (error) {
-      console.error("Error al guardar:", error);
-      alert("Hubo un error al guardar tus datos. Inténtalo de nuevo.");
+      console.error("Error detallado de Firebase:", error);
+      
+      // Mensaje amigable para el usuario
+      if (error.code === 'permission-denied') {
+        alert("Error de permisos: Asegúrate de haber actualizado las Reglas en la Consola de Firebase.");
+      } else {
+        alert("Hubo un problema al guardar. Por favor, intenta de nuevo.");
+      }
     } finally {
       setLoading(false);
     }
@@ -48,16 +57,10 @@ export const RegistrationForm = () => {
 
   return (
     <form onSubmit={handleSubmit} className="registration-card animate-fade-in">
-      
       <header className="form-header">
         <h2 className="form-title">Crea tu Perfil</h2>
         <p className="form-subtitle">Únete y recibe beneficios exclusivos de Bistro.</p>
       </header>
-
-      {/* 
-          HEMOS ELIMINADO EL BLOQUE <div className="location-badge"> 
-          QUE ESTABA AQUÍ PARA EVITAR LA DUPLICIDAD.
-      */}
 
       <div className="form-group">
         <label htmlFor="nombre">Nombre Completo</label>
@@ -65,7 +68,6 @@ export const RegistrationForm = () => {
           id="nombre"
           type="text" 
           required
-          autoComplete="name"
           placeholder="Ej: Juan Pérez"
           className="form-input"
           value={formData.nombre}
@@ -79,8 +81,7 @@ export const RegistrationForm = () => {
           id="whatsapp"
           type="tel" 
           required
-          autoComplete="tel"
-          placeholder="+57 300 000 0000"
+          placeholder="Ej: 3206587850"
           className="form-input"
           value={formData.telefono}
           onChange={(e) => setFormData({...formData, telefono: e.target.value})}
@@ -109,7 +110,7 @@ export const RegistrationForm = () => {
         {loading ? (
           <div className="loader-container">
             <div className="spinner"></div>
-            <span>Procesando...</span>
+            <span>Registrando...</span>
           </div>
         ) : (
           'Unirme a 101 Bistro'
@@ -117,7 +118,7 @@ export const RegistrationForm = () => {
       </button>
       
       <footer className="form-footer-note">
-        <span>🔒 Transacción Segura</span>
+        <span>🔒 Tus datos están protegidos</span>
       </footer>
     </form>
   );

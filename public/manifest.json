@@ -3,18 +3,18 @@
   "name": "101 Bistro Connect",
   "icons": [
     {
-      "src": "logo.512.png",
+      "src": "logo.512.jpg",
       "sizes": "64x64 32x32 24x24 16x16",
       "type": "image/x-icon"
     },
     {
-      "src": "logo.512.png",
-      "type": "image/png",
+      "src": "logo.512.jpg",
+      "type": "image/jpg",
       "sizes": "192x192"
     },
     {
-      "src": "logo.512.png",
-      "type": "image/png",
+      "src": "logo.512.jpg",
+      "type": "image/jpg",
       "sizes": "512x512"
     }
   ],
