@@ -5,17 +5,19 @@ export const useLocation = (targetLat, targetLon) => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // 1. CLÁUSULA DE GUARDA: 
+    // 1. CONVERSIÓN Y VALIDACIÓN ESTRICTA
     // Convertimos a número para asegurar que la matemática no falle.
     const tLat = parseFloat(targetLat);
     const tLon = parseFloat(targetLon);
 
-    // Si los datos de Firebase aún no llegan o son inválidos, salimos.
-    if (isNaN(tLat) || isNaN(tLon)) {
-      setDistance(null);
-      return;
+    // Si los datos no han llegado (son NaN) o son el valor inicial 0, 
+    // simplemente no hacemos nada y esperamos a la siguiente actualización.
+    if (isNaN(tLat) || isNaN(tLon) || tLat === 0) {
+      setDistance(null); // Mantenemos la distancia en null mientras esperamos
+      return; 
     }
 
+    // 2. VERIFICACIÓN DE SOPORTE DE NAVEGADOR
     if (!navigator.geolocation) {
       setError("Geolocalización no soportada en este navegador");
       return;
@@ -56,7 +58,7 @@ export const useLocation = (targetLat, targetLon) => {
           }
         },
         (err) => {
-          // Si el usuario deniega el permiso, lo notificamos a App.jsx
+          // Si el usuario deniega el permiso o falla la señal, lo notificamos
           setError(err.message);
           console.warn(`Error GPS (${err.code}): ${err.message}`);
         },

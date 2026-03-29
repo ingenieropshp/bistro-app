@@ -9,7 +9,7 @@ function App() {
   const [hasNotified, setHasNotified] = useState(false);
   const [bistroLoc, setBistroLoc] = useState(null);
 
-  // 1. Sincronización con Firebase (Documento: 'ubicacion' en minúsculas)
+  // 1. Sincronización con Firebase
   useEffect(() => {
     const docRef = doc(db, "configuracion", "ubicacion");
     
@@ -30,11 +30,24 @@ function App() {
     return () => unsubscribe(); 
   }, []);
 
-  // 2. Hook de localización - Se añaden valores por defecto (null) para estabilidad
+  // 2. Hook de localización - Se usan los datos de bistroLoc directamente
   const { distance: distancia, error: geoError } = useLocation(
     bistroLoc?.lat || null, 
     bistroLoc?.lon || null
   );
+
+  // --- CLÁUSULA DE GUARDA SOLIDA ---
+  // Si Firebase aún no responde, mostramos un estado de carga elegante
+  if (!bistroLoc) {
+    return (
+      <div className="main-wrapper" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <div style={{ textAlign: 'center', opacity: 0.6, fontSize: '14px' }}>
+          <div className="loading-spinner" style={{ marginBottom: '1rem' }}>⌛</div>
+          Sincronizando configuración de Bistro...
+        </div>
+      </div>
+    );
+  }
 
   const abrirMapa = () => {
     if (!bistroLoc?.lat) return;
@@ -91,8 +104,8 @@ function App() {
         </div>
       )}
 
-      {/* UI de Distancia: Se asegura de mostrar datos solo cuando distancia es un número válido */}
-      {bistroLoc && typeof distancia === 'number' ? (
+      {/* UI de Distancia */}
+      {typeof distancia === 'number' ? (
         <div 
           className={`proximity-badge ${distancia <= (bistroLoc.radioAviso || 800) ? 'near' : ''} animate-fade-in`}
           onClick={abrirMapa}
@@ -123,11 +136,7 @@ function App() {
         </div>
       ) : (
         <div style={{ textAlign: 'center', padding: '2rem', opacity: 0.5, fontSize: '12px' }}>
-          {geoError ? (
-            "Esperando señal GPS..."
-          ) : (
-            <div className="loading-spinner">Sincronizando ubicación...</div>
-          )}
+          {geoError ? "Esperando señal GPS..." : "Calculando distancia..."}
         </div>
       )}
 
