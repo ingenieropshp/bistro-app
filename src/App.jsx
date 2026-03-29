@@ -9,19 +9,20 @@ function App() {
   const [hasNotified, setHasNotified] = useState(false);
   const [bistroLoc, setBistroLoc] = useState(null);
 
-  // 1. Sincronización en Tiempo Real con Firebase
+  // 1. Sincronización en Tiempo Real con Firebase (con Cleanup optimizado)
   useEffect(() => {
     const docRef = doc(db, "configuracion", "ubicacion");
     
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data && typeof data.lat === 'number' && typeof data.lon === 'number') {
-          console.log("📍 Datos de ubicación recibidos:", data);
-          setBistroLoc(data);
+      try {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data && typeof data.lat === 'number' && typeof data.lon === 'number') {
+            setBistroLoc(data);
+          }
         }
-      } else {
-        console.warn("⚠️ No se encontró el documento 'configuracion/ubicacion'");
+      } catch (err) {
+        console.debug("Error procesando datos de Firebase:", err);
       }
     }, (error) => {
       console.error("❌ Error Firebase:", error);
@@ -36,30 +37,35 @@ function App() {
     bistroLoc?.lon ?? null
   );
 
-  // 3. Lógica de Notificación con captura de errores (Anti-403)
+  // 3. Ajuste: Pedir permiso de notificación de forma proactiva y segura
+  useEffect(() => {
+    const initNotifications = async () => {
+      if ("Notification" in window && Notification.permission === "default") {
+        try {
+          await Notification.requestPermission();
+        } catch (e) {
+          console.debug("Petición de permiso ignorada");
+        }
+      }
+    };
+    initNotifications();
+  }, []);
+
+  // 4. Lógica de Notificación Push Geolocalizada
   useEffect(() => {
     if (bistroLoc && typeof distancia === 'number') {
       const radioAviso = Number(bistroLoc.radioAviso) || 800;
 
       if (distancia <= radioAviso && !hasNotified) {
-        if ("Notification" in window) {
-          if (Notification.permission === "granted") {
-            try {
-              new Notification("¡Ya casi llegas! 🥂", {
-                body: `Estás a menos de ${radioAviso}m de 101 Bistro.`,
-                icon: "https://res.cloudinary.com/dq5vhizl1/image/upload/v1773969689/cuuchedwncrpkkushoci.jpg"
-              });
-              setHasNotified(true);
-            } catch (e) {
-              console.warn("Error enviando notificación física:", e);
-            }
-          } else if (Notification.permission === "default") {
-            // Usamos catch para evitar el "Uncaught (in promise)" si el usuario cierra el prompt
-            Notification.requestPermission()
-              .then((permission) => {
-                if (permission === "granted") console.log("Permiso concedido");
-              })
-              .catch((err) => console.debug("Petición de notificación omitida"));
+        if ("Notification" in window && Notification.permission === "granted") {
+          try {
+            new Notification("¡Ya casi llegas! 🥂", {
+              body: `Estás a menos de ${radioAviso}m de 101 Bistro.`,
+              icon: "https://res.cloudinary.com/dq5vhizl1/image/upload/v1773969689/cuuchedwncrpkkushoci.jpg"
+            });
+            setHasNotified(true);
+          } catch (e) {
+            console.warn("Error enviando notificación:", e);
           }
         }
       } 
