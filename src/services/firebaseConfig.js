@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore } from "firebase/firestore";
 
-// Leemos las variables del archivo .env usando import.meta.env
+// Configuración extraída de las variables de entorno (.env)
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -11,6 +11,19 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
+// Inicialización de la aplicación Firebase
 const app = initializeApp(firebaseConfig);
-// Exportamos 'db' para usarlo en el formulario y el panel
-export const db = getFirestore(app);
+
+/**
+ * Optimizamos la conexión de Firestore para 101 Bistro.
+ * 'experimentalForceLongPolling' elimina los errores 403 (Uncaught in promise)
+ * causados por bloqueos de red en la comunicación por WebSockets.
+ */
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true,
+  // Opcional: puedes añadir 'useFetchStreams: false' si los errores persistieran, 
+  // pero con Long Polling debería ser suficiente.
+});
+
+// Exportamos la app por si necesitas usar Auth o Storage más adelante
+export default app;
