@@ -29,6 +29,9 @@ function App() {
 
   // 2. Carga Dinámica desde Firebase basada en restauranteID
   useEffect(() => {
+    // Verificación de seguridad para el ID
+    if (!restauranteID) return;
+
     const docRef = doc(db, "restaurantes", restauranteID);
 
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
@@ -39,13 +42,15 @@ function App() {
             setBistroLoc(data);
           }
         } else {
-          console.error("El restaurante no existe en la base de datos");
+          // Si el ID tiene espacios, este log te confirmará si Firebase lo encuentra o no
+          console.error(`El restaurante "${restauranteID}" no existe en la base de datos`);
         }
       } catch (err) {
         console.debug("Error procesando datos de Firebase:", err);
       }
     }, (error) => {
-      console.error("❌ Error Firebase:", error);
+      // AJUSTE: Esto imprimirá el error real (como falta de permisos) en lugar de "Object"
+      console.error("❌ Error Detallado de Firebase:", error.code, error.message);
     });
 
     return () => unsubscribe(); 
