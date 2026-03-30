@@ -53,7 +53,12 @@ export const SuccessCard = ({ restauranteId, nombreRestaurante, nombreCliente = 
             alignItems: 'center', 
             justifyContent: 'center', 
             gap: '10px',
-            boxShadow: '0 4px 15px rgba(37, 211, 102, 0.3)'
+            boxShadow: '0 4px 15px rgba(37, 211, 102, 0.3)',
+            border: 'none',
+            borderRadius: '8px',
+            padding: '12px',
+            fontWeight: 'bold',
+            cursor: 'pointer'
           }}
         >
           <span style={{ fontSize: '1.2rem' }}>📢</span> INVITAR UN AMIGO
@@ -67,7 +72,8 @@ export const SuccessCard = ({ restauranteId, nombreRestaurante, nombreCliente = 
             color: '#94a3b8', 
             cursor: 'pointer',
             fontSize: '0.9rem',
-            textDecoration: 'underline'
+            textDecoration: 'underline',
+            marginTop: '0.5rem'
           }}
         >
           Finalizar y volver

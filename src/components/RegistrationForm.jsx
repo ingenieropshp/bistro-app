@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { db } from '../services/firebaseConfig';
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
-// Añadimos referidoPor a las props
+// Recibe onSuccess, restaurantId y referidoPor desde App.js
 export const RegistrationForm = ({ onSuccess, restaurantId, referidoPor }) => {
   const [formData, setFormData] = useState({
     nombre: '',
@@ -40,19 +40,23 @@ export const RegistrationForm = ({ onSuccess, restaurantId, referidoPor }) => {
 
     setLoading(true);
     try {
-      // 2. Guardamos en la colección "clientes" vinculando el restaurantId y referidoPor
-      await addDoc(collection(db, "clientes"), {
+      // 2. Creamos el objeto del nuevo cliente con los cambios solicitados
+      const nuevoCliente = {
         nombre: formData.nombre.trim(),
         telefono: formData.telefono.trim(),
         fechaNacimiento: formData.fechaNacimiento,
-        restauranteId: restaurantId || 'default', 
-        // CAMBIO: Agregamos lógica de referido
+        restauranteId: restaurantId,
+        // Usamos serverTimestamp para consistencia en la base de datos, 
+        // o new Date().toISOString() si prefieres string plano.
+        fechaRegistro: serverTimestamp(), 
         referidoPor: referidoPor || "Directo (QR local)",
-        fechaRegistro: serverTimestamp(),
         origen: "Web App"
-      });
+      };
+
+      // 3. Guardamos en la colección "clientes"
+      await addDoc(collection(db, "clientes"), nuevoCliente);
       
-      // 3. Notificamos éxito al componente padre pasando el nombre
+      // 4. Notificamos éxito al componente padre pasando el nombre
       if (onSuccess) {
         onSuccess(formData.nombre.trim()); 
       }

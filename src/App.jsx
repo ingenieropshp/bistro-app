@@ -7,29 +7,29 @@ import { db } from './services/firebaseConfig';
 import './App.css';
 
 function App() {
-  // 1. Extraemos el ID del restaurante o usamos uno por defecto
+  // 1. Extraemos los parámetros de la URL de forma eficiente
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
-  const restauranteID = params.get('r') || '101 Bistro'; 
+  
+  // Capturamos el ID del restaurante ('r') o usamos '101 Bistro' por defecto
+  const restauranteID = useMemo(() => params.get('r') || '101 Bistro', [params]);
 
-  // --- NUEVO: Estado para referidos ---
+  // --- ESTADOS ---
   const [referidoPor, setReferidoPor] = useState("");
-
+  const [bistroLoc, setBistroLoc] = useState(null);
+  const [isRegistered, setIsRegistered] = useState(false);
+  const [nombreCliente, setNombreCliente] = useState(""); // Captura el nombre para la SuccessCard
   const [hasNotified, setHasNotified] = useState(() => {
     return localStorage.getItem('bistro_notified') === 'true';
   });
-  
-  const [bistroLoc, setBistroLoc] = useState(null);
-  const [isRegistered, setIsRegistered] = useState(false);
 
-  // --- NUEVO: Captura de parámetro 'ref' ---
+  // --- CAPTURA DE REFERIDO ---
   useEffect(() => {
-    const ref = params.get('ref'); // Capturamos el nombre del amigo desde la URL (?ref=nombre)
+    const ref = params.get('ref'); // Capturamos el nombre del amigo (?ref=nombre)
     if (ref) setReferidoPor(ref);
   }, [params]);
 
-  // 2. Carga Dinámica desde Firebase basada en restauranteID
+  // --- CARGA DINÁMICA DESDE FIREBASE ---
   useEffect(() => {
-    // Verificación de seguridad para el ID
     if (!restauranteID) return;
 
     const docRef = doc(db, "restaurantes", restauranteID);
@@ -42,21 +42,19 @@ function App() {
             setBistroLoc(data);
           }
         } else {
-          // Si el ID tiene espacios, este log te confirmará si Firebase lo encuentra o no
           console.error(`El restaurante "${restauranteID}" no existe en la base de datos`);
         }
       } catch (err) {
         console.debug("Error procesando datos de Firebase:", err);
       }
     }, (error) => {
-      // AJUSTE: Esto imprimirá el error real (como falta de permisos) en lugar de "Object"
       console.error("❌ Error Detallado de Firebase:", error.code, error.message);
     });
 
     return () => unsubscribe(); 
   }, [restauranteID]);
 
-  // Lógica de ubicación
+  // Lógica de ubicación (GPS)
   const { distance: distancia, error: geoError } = useLocation(
     bistroLoc?.lat ?? null, 
     bistroLoc?.lon ?? null
@@ -76,14 +74,14 @@ function App() {
     initNotifications();
   }, []);
 
-  // Configuración de textos
+  // Configuración de textos dinámicos
   const config = useMemo(() => ({
     radioAviso: Number(bistroLoc?.radioAviso) || 800,
     mensaje: bistroLoc?.mensajePromo || 'CORTESÍA DISPONIBLE',
     nombreBistro: bistroLoc?.nombre || '101 BISTRO'
   }), [bistroLoc]);
 
-  // Lógica de Notificaciones Push
+  // Lógica de Notificaciones Push según cercanía
   useEffect(() => {
     if (bistroLoc && typeof distancia === 'number') {
       if (distancia <= config.radioAviso && !hasNotified) {
@@ -113,7 +111,13 @@ function App() {
     window.open(url, '_blank');
   };
 
-  // Pantalla de espera
+  // Función para manejar el éxito del registro capturando el nombre
+  const handleSuccess = (nombre) => {
+    setNombreCliente(nombre);
+    setIsRegistered(true);
+  };
+
+  // 1. Pantalla de espera mientras carga Firebase
   if (!bistroLoc) {
     return (
       <div className="main-wrapper" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
@@ -125,12 +129,13 @@ function App() {
     );
   }
 
-  // Renderizado de SuccessCard
+  // 2. Pantalla de Éxito tras registro
   if (isRegistered) {
     return (
       <SuccessCard 
         restauranteId={restauranteID} 
         nombreRestaurante={bistroLoc?.nombre || "nuestro local"} 
+        nombreCliente={nombreCliente}
       />
     );
   }
@@ -143,6 +148,11 @@ function App() {
         <h1 className="bistro-title" style={{ fontSize: '3.5rem', fontWeight: '900', letterSpacing: '-0.05em', textTransform: 'uppercase' }}>
             {config.nombreBistro}<span style={{ color: 'var(--accent)' }}>.</span>
         </h1>
+        {referidoPor && (
+          <p style={{ opacity: 0.7, fontSize: '0.9rem', marginTop: '-1rem' }}>
+            Invitado por: <strong>{referidoPor}</strong>
+          </p>
+        )}
       </header>
 
       {geoError && (
@@ -151,6 +161,7 @@ function App() {
         </div>
       )}
 
+      {/* Indicador de Distancia */}
       {typeof distancia === 'number' ? (
         <div 
           className={`proximity-badge ${esCerca ? 'near' : ''} animate-fade-in`}
@@ -178,15 +189,13 @@ function App() {
         <div className="gps-loader">Esperando señal de GPS...</div>
       )}
       
-
+      {/* Formulario de Registro */}
       <main className="animate-fade-in">
-        {!isRegistered ? (
-          <RegistrationForm 
-            restaurantId={restauranteID} 
-            referidoPor={referidoPor} // --- PASAMOS EL REFERIDO AL FORMULARIO ---
-            onSuccess={() => setIsRegistered(true)} 
-          />
-        ) : null}
+        <RegistrationForm 
+          restaurantId={restauranteID} 
+          referidoPor={referidoPor} 
+          onSuccess={handleSuccess} 
+        />
       </main>
       
       <footer className="version-footer">
