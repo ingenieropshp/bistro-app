@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { initializeFirestore } from "firebase/firestore";
+import { initializeFirestore, enableIndexedDbPersistence } from "firebase/firestore";
 
 // Configuración extraída de las variables de entorno (.env)
 const firebaseConfig = {
@@ -17,12 +17,24 @@ const app = initializeApp(firebaseConfig);
 /**
  * Optimizamos la conexión de Firestore para 101 Bistro.
  * 'experimentalForceLongPolling' elimina los errores 403 (Uncaught in promise)
- * causados por bloqueos de red en la comunicación por WebSockets.
  */
 export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
-  // Opcional: puedes añadir 'useFetchStreams: false' si los errores persistieran, 
-  // pero con Long Polling debería ser suficiente.
+});
+
+/**
+ * Habilitar persistencia de datos offline.
+ * Esto permite que la app cargue instantáneamente y guarde registros 
+ * aunque no haya internet en ese momento.
+ */
+enableIndexedDbPersistence(db).catch((err) => {
+    if (err.code === 'failed-precondition') {
+        // Múltiples pestañas abiertas, la persistencia solo funciona en una.
+        console.warn("La persistencia de datos falló por múltiples pestañas.");
+    } else if (err.code === 'unimplemented') {
+        // El navegador no soporta esta característica.
+        console.warn("El navegador no soporta persistencia offline.");
+    }
 });
 
 // Exportamos la app por si necesitas usar Auth o Storage más adelante

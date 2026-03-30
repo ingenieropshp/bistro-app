@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { db } from '../services/firebaseConfig';
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
-export const RegistrationForm = () => {
+// Añadimos referidoPor a las props
+export const RegistrationForm = ({ onSuccess, restaurantId, referidoPor }) => {
   const [formData, setFormData] = useState({
     nombre: '',
-    telefono: '', // Este campo debe coincidir con la regla de Firebase
+    telefono: '',
     fechaNacimiento: ''
   });
   const [loading, setLoading] = useState(false);
@@ -13,15 +14,25 @@ export const RegistrationForm = () => {
   // --- LÓGICA DE RANGO DE FECHAS ---
   const hoy = new Date();
   const fechaMaxima = hoy.toISOString().split("T")[0];
-
   const hace90Anios = new Date();
   hace90Anios.setFullYear(hoy.getFullYear() - 90);
   const fechaMinima = hace90Anios.toISOString().split("T")[0];
 
+  // Manejador genérico de inputs
+  const handleChange = (e) => {
+    const { id, value } = e.target;
+    
+    let fieldName = id;
+    if (id === 'whatsapp') fieldName = 'telefono';
+    if (id === 'nacimiento') fieldName = 'fechaNacimiento';
+
+    setFormData(prev => ({ ...prev, [fieldName]: value }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validación básica antes de intentar guardar
+    // 1. Validaciones de campos vacíos
     if (!formData.nombre.trim() || !formData.telefono.trim() || !formData.fechaNacimiento) {
       alert("Por favor, completa todos los campos.");
       return;
@@ -29,26 +40,29 @@ export const RegistrationForm = () => {
 
     setLoading(true);
     try {
-      // IMPORTANTE: El objeto enviado debe tener 'nombre' y 'telefono' 
-      // para pasar la validación de tus reglas de Firestore.
+      // 2. Guardamos en la colección "clientes" vinculando el restaurantId y referidoPor
       await addDoc(collection(db, "clientes"), {
         nombre: formData.nombre.trim(),
         telefono: formData.telefono.trim(),
         fechaNacimiento: formData.fechaNacimiento,
+        restauranteId: restaurantId || 'default', 
+        // CAMBIO: Agregamos lógica de referido
+        referidoPor: referidoPor || "Directo (QR local)",
         fechaRegistro: serverTimestamp(),
-        origen: "Web App" // Opcional: para saber de dónde vienen
+        origen: "Web App"
       });
       
-      alert("¡Gracias! Ya eres parte de Bistro Connect.");
-      setFormData({ nombre: '', telefono: '', fechaNacimiento: '' }); 
+      // 3. Notificamos éxito al componente padre pasando el nombre
+      if (onSuccess) {
+        onSuccess(formData.nombre.trim()); 
+      }
+
     } catch (error) {
       console.error("Error detallado de Firebase:", error);
-      
-      // Mensaje amigable para el usuario
       if (error.code === 'permission-denied') {
-        alert("Error de permisos: Asegúrate de haber actualizado las Reglas en la Consola de Firebase.");
+        alert("Error de permisos: Revisa las reglas de seguridad en Firebase.");
       } else {
-        alert("Hubo un problema al guardar. Por favor, intenta de nuevo.");
+        alert("Hubo un problema al registrar. Por favor, intenta de nuevo.");
       }
     } finally {
       setLoading(false);
@@ -71,7 +85,7 @@ export const RegistrationForm = () => {
           placeholder="Ej: Juan Pérez"
           className="form-input"
           value={formData.nombre}
-          onChange={(e) => setFormData({...formData, nombre: e.target.value})}
+          onChange={handleChange}
         />
       </div>
 
@@ -84,7 +98,7 @@ export const RegistrationForm = () => {
           placeholder="Ej: 3206587850"
           className="form-input"
           value={formData.telefono}
-          onChange={(e) => setFormData({...formData, telefono: e.target.value})}
+          onChange={handleChange}
         />
       </div>
 
@@ -98,7 +112,7 @@ export const RegistrationForm = () => {
           max={fechaMaxima}
           className="form-input"
           value={formData.fechaNacimiento}
-          onChange={(e) => setFormData({...formData, fechaNacimiento: e.target.value})}
+          onChange={handleChange}
         />
       </div>
 
@@ -113,7 +127,7 @@ export const RegistrationForm = () => {
             <span>Registrando...</span>
           </div>
         ) : (
-          'Unirme a 101 Bistro'
+          'Unirme al Club'
         )}
       </button>
       
