@@ -13,7 +13,8 @@ const calcularDistancia = (lat1, lon1, lat2, lon2) => {
   return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 };
 
-export const UserDashboard = ({ restauranteId, clienteId }) => {
+// 1. Añadido 'nombreRestaurante' a las props
+export const UserDashboard = ({ restauranteId, clienteId, nombreRestaurante }) => {
   const [cliente, setCliente] = useState(null);
   const [procesando, setProcesando] = useState(false);
   const [esCerca, setEsCerca] = useState(false);
@@ -35,7 +36,6 @@ export const UserDashboard = ({ restauranteId, clienteId }) => {
     fetchCliente();
   }, [clienteId]);
 
-  // --- LÓGICA DE DÍAS RESTANTES ---
   const obtenerDiasRestantes = () => {
     if (!cliente || !cliente.fechaCumplimiento) return null;
     
@@ -142,9 +142,10 @@ export const UserDashboard = ({ restauranteId, clienteId }) => {
   };
 
   const compartirInvitacion = async () => {
+    // 2. Modificado para usar 'nombreRestaurante' dinámicamente
     const shareData = {
-      title: `¡Únete a 101 Bistro!`,
-      text: `¡Hola! Me registré en 101 Bistro. Usa mi enlace para que ambos recibamos beneficios:`,
+      title: `¡Únete a ${nombreRestaurante}!`,
+      text: `¡Hola! Me registré en ${nombreRestaurante}. Usa mi enlace para que ambos recibamos beneficios:`,
       url: `${window.location.origin}/?r=${restauranteId}&ref=${encodeURIComponent(cliente?.nombre || 'Amigo')}`
     };
     try {
@@ -163,9 +164,9 @@ export const UserDashboard = ({ restauranteId, clienteId }) => {
         ¡LISTO, {cliente.nombre?.toUpperCase()}!
       </h2>
       
-      <p className="subtitle">Ahora eres embajador de <strong>101 Bistro</strong>.</p>
+      {/* 3. Cambiado '101 Bistro' por {nombreRestaurante} */}
+      <p className="subtitle">Ahora eres embajador de <strong>{nombreRestaurante}</strong>.</p>
 
-      {/* ALERTA DE PREMIO PENDIENTE */}
       {cliente.reclamoPendiente && (
         <div className="bg-red-100 p-4 rounded-xl border-2 border-red-500 my-4 text-center animate-bounce">
           <p className="text-red-700 font-bold">¡TIENES UN PREMIO PENDIENTE!</p>

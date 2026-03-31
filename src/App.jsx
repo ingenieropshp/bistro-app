@@ -152,6 +152,7 @@ function App() {
             clienteId={clienteId} 
             distancia={distancia}
             esCerca={esCerca}
+            nombreRestaurante={config.nombreBistro}
           />
         ) : (
           <RegistrationForm 

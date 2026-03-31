@@ -15,12 +15,18 @@ const calcularDistancia = (lat1, lon1, lat2, lon2) => {
   return R * c; 
 };
 
-export const SuccessCard = ({ restauranteId, nombreRestaurante, nombreCliente = "amigo", clienteId, puntosActuales = 0 }) => {
+export const SuccessCard = ({ 
+  restauranteId, 
+  nombreRestaurante, 
+  nombreCliente, 
+  clienteId, 
+  puntosActuales = 0,
+  onClose // 1. Recibimos onClose para el botón continuar
+}) => {
   
   // --- LÓGICA DE LLEGADA / PUNTOS CON GEOCERCA ---
   const manejarLlegada = async (id, puntos) => {
     try {
-      // 1. Obtener la ubicación del restaurante desde Firestore
       const restRef = doc(db, "restaurantes", restauranteId);
       const restSnap = await getDoc(restRef);
 
@@ -31,16 +37,13 @@ export const SuccessCard = ({ restauranteId, nombreRestaurante, nombreCliente = 
 
       const { lat: restLat, lon: restLon, radioAviso = 200 } = restSnap.data();
 
-      // 2. Obtener la ubicación actual del usuario
       navigator.geolocation.getCurrentPosition(async (position) => {
         const userLat = position.coords.latitude;
         const userLon = position.coords.longitude;
 
-        // 3. Calcular distancia
         const distanciaKm = calcularDistancia(userLat, userLon, restLat, restLon);
         const distanciaMetros = distanciaKm * 1000;
 
-        // 4. Validar si está en el rango (radioAviso en metros)
         if (distanciaMetros <= radioAviso) {
           const nuevosPuntos = puntos + 2;
           const tienePremio = nuevosPuntos >= 20;
@@ -60,11 +63,10 @@ export const SuccessCard = ({ restauranteId, nombreRestaurante, nombreCliente = 
             alert("¡Gracias por visitarnos! Sumaste 2 puntos. ✨");
           }
         } else {
-          alert("📍 Para sumar puntos debes estar en el establecimiento.");
+          console.log("📍 Fuera de rango para sumar puntos.");
         }
       }, (error) => {
-        alert("❌ Necesitamos acceso a tu ubicación para validar tu visita y sumar puntos.");
-        console.error(error);
+        console.warn("❌ Ubicación no disponible:", error.message);
       }, { enableHighAccuracy: true });
 
     } catch (err) {
@@ -100,15 +102,27 @@ export const SuccessCard = ({ restauranteId, nombreRestaurante, nombreCliente = 
   };
 
   return (
-    <div className="registration-card animate-fade-in" style={{ textAlign: 'center', padding: '2.5rem 1.5rem' }}>
+    <div className="success-card-container animate-fade-in" style={{ 
+      textAlign: 'center', 
+      padding: '2.5rem 1.5rem',
+      borderRadius: '15px',
+      boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+      backgroundColor: '#fff',
+      maxWidth: '400px',
+      margin: 'auto'
+    }}>
       <div style={{ fontSize: '4.5rem', marginBottom: '1rem' }}>🎁</div>
-      <h2 style={{ color: 'var(--accent)', marginBottom: '0.5rem', fontSize: '1.8rem' }}>
-        ¡LISTO, {nombreCliente.toUpperCase()}!
+      
+      {/* Usamos nombreCliente como en tu primer bloque */}
+      <h2 style={{ color: 'var(--accent, #3b82f6)', marginBottom: '0.5rem', fontSize: '1.8rem' }}>
+        ¡LISTO, {nombreCliente?.toUpperCase()}!
       </h2>
+      
+      {/* 2. Referencia dinámica al restaurante */}
       <p style={{ marginBottom: '1.5rem', lineHeight: '1.6', color: '#475569' }}>
-        Ahora eres embajador de <strong>{nombreRestaurante}</strong>.<br />
-        Comparte tu enlace para que tus amigos también reciban beneficios.
+        Ahora eres embajador de <strong>{nombreRestaurante || "nuestro restaurante"}</strong>.
       </p>
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         <button 
           onClick={handleCompartir}
@@ -116,7 +130,6 @@ export const SuccessCard = ({ restauranteId, nombreRestaurante, nombreCliente = 
           style={{ 
             background: '#25D366', 
             color: 'white',
-            marginTop: '0.5rem', 
             display: 'flex', 
             alignItems: 'center', 
             justifyContent: 'center', 
@@ -124,28 +137,36 @@ export const SuccessCard = ({ restauranteId, nombreRestaurante, nombreCliente = 
             boxShadow: '0 4px 15px rgba(37, 211, 102, 0.3)',
             border: 'none',
             borderRadius: '8px',
-            padding: '12px',
+            padding: '14px',
             fontWeight: 'bold',
-            cursor: 'pointer'
+            cursor: 'pointer',
+            fontSize: '1rem'
           }}
         >
           <span style={{ fontSize: '1.2rem' }}>📢</span> INVITAR UN AMIGO
         </button>
+
+        {/* Botón Continuar usando la prop onClose */}
         <button 
-          onClick={() => window.location.reload()} 
+          onClick={onClose || (() => window.location.reload())} 
+          className="btn-confirmar"
           style={{ 
-            background: 'transparent', 
+            background: '#3b82f6', 
+            color: 'white',
             border: 'none', 
-            color: '#94a3b8', 
+            borderRadius: '8px',
+            padding: '12px',
+            fontWeight: 'bold',
             cursor: 'pointer',
             fontSize: '0.9rem',
-            textDecoration: 'underline',
             marginTop: '0.5rem'
           }}
         >
-          Finalizar y volver
+          CONTINUAR
         </button>
       </div>
     </div>
   );
 };
+
+export default SuccessCard;
