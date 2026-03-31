@@ -3,7 +3,8 @@ import { RegistrationForm } from './components/RegistrationForm';
 import { SuccessCard } from './components/SuccessCard'; 
 import { UserDashboard } from './components/UserDashboard'; 
 import { useLocation } from './hooks/useLocation';
-import { doc, onSnapshot } from "firebase/firestore";
+// IMPORTACIONES ACTUALIZADAS PARA LA QUERY
+import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from './services/firebaseConfig'; 
 import './App.css';
 
@@ -11,11 +12,10 @@ function App() {
   // --- PARÁMETROS Y CONFIGURACIÓN ---
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
 
-  // CAMBIO REALIZADO AQUÍ: Decodificación y limpieza del ID del restaurante
+  // Decodificación y limpieza del ID del restaurante
   const restauranteID = useMemo(() => {
     const rRaw = params.get('r');
     if (rRaw) {
-      // decodeURIComponent convierte "%20" en espacios reales y .trim() quita espacios extras
       return decodeURIComponent(rRaw).trim();
     }
     return '101 Bistro';
@@ -23,7 +23,6 @@ function App() {
 
   // --- ESTADOS DE USUARIO (Persistencia Multisede) ---
   const [clienteId, setClienteId] = useState(() => {
-    // Se usa el restauranteID ya limpio para buscar en el storage
     const registros = JSON.parse(localStorage.getItem("bistro_multisede") || "{}");
     return registros[restauranteID] || null;
   });
@@ -41,21 +40,24 @@ function App() {
     if (ref) setReferidoPor(ref);
   }, [params]);
 
-  // Carga de datos del restaurante desde Firebase
+  // --- CAMBIO APLICADO: Carga de datos del restaurante mediante QUERY por nombre ---
   useEffect(() => {
     if (!restauranteID) return;
+
+    // En lugar de buscar por ID de documento, buscamos por el campo 'nombre'
+    const q = query(collection(db, "restaurantes"), where("nombre", "==", restauranteID));
     
-    // Ahora restauranteID coincide exactamente con el nombre de la colección en Firestore
-    const docRef = doc(db, "restaurantes", restauranteID);
-    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
       try {
-        if (docSnap.exists()) {
+        if (!querySnapshot.empty) {
+          // Tomamos el primer resultado que coincida
+          const docSnap = querySnapshot.docs[0];
           const data = docSnap.data();
           if (data && typeof data.lat === 'number' && typeof data.lon === 'number') {
             setBistroLoc(data);
           }
         } else {
-          console.warn(`El restaurante "${restauranteID}" no existe en la base de datos.`);
+          console.warn(`No se encontró configuración para: "${restauranteID}"`);
         }
       } catch (err) {
         console.error("Error en Firebase:", err);
@@ -87,7 +89,7 @@ function App() {
   const config = useMemo(() => ({
     radioAviso: Number(bistroLoc?.radioAviso) || 800,
     mensaje: bistroLoc?.mensajePromo || 'CORTESÍA DISPONIBLE',
-    nombreBistro: bistroLoc?.nombre || restauranteID // Usamos el ID limpio si no carga el nombre
+    nombreBistro: bistroLoc?.nombre || restauranteID 
   }), [bistroLoc, restauranteID]);
 
   // --- RENDERIZADO CONDICIONAL ---

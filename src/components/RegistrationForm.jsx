@@ -63,12 +63,12 @@ export const RegistrationForm = ({ onSuccess, restaurantId, referidoPor }) => {
         return; 
       }
 
-      // 3. SI NO EXISTE, PROCEDER CON EL REGISTRO
+      // 3. SI NO EXISTE, PROCEDER CON EL REGISTRO (Cambios aplicados aquí)
       const nuevoCliente = {
         nombre: formData.nombre.trim(),
         telefono: formData.telefono.trim(),
         fechaNacimiento: formData.fechaNacimiento,
-        restauranteId: restaurantId,
+        restauranteId: restaurantId, // Se mantiene como indicaste en la captura
         puntos: 2, 
         ultimaVisita: serverTimestamp(),
         fechaRegistro: serverTimestamp(), 
@@ -80,7 +80,6 @@ export const RegistrationForm = ({ onSuccess, restaurantId, referidoPor }) => {
       const docRef = await addDoc(collection(db, "clientes"), nuevoCliente);
       
       // 5. NOTIFICAMOS ÉXITO AL PADRE (App.jsx)
-      // Enviamos el ID generado por Firebase y el nombre del cliente
       if (onSuccess) {
         onSuccess(docRef.id, formData.nombre.trim()); 
       }
