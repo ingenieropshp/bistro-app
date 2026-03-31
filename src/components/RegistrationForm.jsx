@@ -18,6 +18,9 @@ export const RegistrationForm = ({ onSuccess, restaurantId, referidoPor }) => {
   });
   const [loading, setLoading] = useState(false);
 
+  // --- ESTADO PARA EL MODAL DE TÉRMINOS ---
+  const [mostrarTerminos, setMostrarTerminos] = useState(false);
+
   // --- LÓGICA DE RANGO DE FECHAS ---
   const hoy = new Date();
   const fechaMaxima = hoy.toISOString().split("T")[0];
@@ -63,16 +66,16 @@ export const RegistrationForm = ({ onSuccess, restaurantId, referidoPor }) => {
         return; 
       }
 
-      // 3. SI NO EXISTE, PROCEDER CON EL REGISTRO (Cambios aplicados aquí)
+      // 3. SI NO EXISTE, PROCEDER CON EL REGISTRO
       const nuevoCliente = {
         nombre: formData.nombre.trim(),
         telefono: formData.telefono.trim(),
         fechaNacimiento: formData.fechaNacimiento,
-        restauranteId: restaurantId, // Se mantiene como indicaste en la captura
+        restauranteId: restaurantId, 
         puntos: 2, 
         ultimaVisita: serverTimestamp(),
         fechaRegistro: serverTimestamp(), 
-        referidoPor: referidoPor || "Directo (QR local)",
+        referidopor: referidoPor || "Directo (QR local)",
         origen: "Web App"
       };
 
@@ -147,6 +150,7 @@ export const RegistrationForm = ({ onSuccess, restaurantId, referidoPor }) => {
         type="submit" 
         disabled={loading}
         className="btn-submit"
+        style={{ marginBottom: '15px' }}
       >
         {loading ? (
           <div className="loader-container">
@@ -157,10 +161,118 @@ export const RegistrationForm = ({ onSuccess, restaurantId, referidoPor }) => {
           'Unirme al Club'
         )}
       </button>
+
+      {/* --- SECCIÓN DE BENEFICIOS Y TÉRMINOS --- */}
+      <div style={{ 
+        backgroundColor: '#f3f4f6', 
+        borderRadius: '15px', 
+        padding: '16px', 
+        marginTop: '10px',
+        textAlign: 'left',
+        border: '1px solid #e5e7eb'
+      }}>
+        <p style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#374151', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          ✨ Beneficios de Registro
+        </p>
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'start', gap: '10px' }}>
+            <span style={{ fontSize: '1rem' }}>🎁</span>
+            <p style={{ fontSize: '0.75rem', color: '#4b5563', margin: 0 }}>
+              Gana <strong>2 puntos</strong> hoy mismo por registrarte y visitar el local.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'start', gap: '10px' }}>
+            <span style={{ fontSize: '1rem' }}>🎫</span>
+            <p style={{ fontSize: '0.75rem', color: '#4b5563', margin: 0 }}>
+              Al completar <strong>20 puntos</strong>, reclama tu premio sorpresa en caja.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'start', gap: '10px' }}>
+            <span style={{ fontSize: '1rem' }}>⏳</span>
+            <p style={{ fontSize: '0.75rem', color: '#4b5563', margin: 0 }}>
+              ¡No pierdas tus puntos! Expiran si no visitas el local en <strong>30 días</strong>.
+            </p>
+          </div>
+        </div>
+
+        {/* --- BOTÓN PARA ABRIR TÉRMINOS --- */}
+        <p 
+          onClick={() => setMostrarTerminos(true)}
+          style={{ 
+            fontSize: '0.65rem', 
+            color: '#6366f1', 
+            marginTop: '12px', 
+            fontStyle: 'italic', 
+            cursor: 'pointer',
+            textDecoration: 'underline'
+          }}
+        >
+          * Al unirte, aceptas los Términos y Condiciones.
+        </p>
+      </div>
       
-      <footer className="form-footer-note">
+      <footer className="form-footer-note" style={{ marginTop: '15px' }}>
         <span>🔒 Tus datos están protegidos</span>
       </footer>
+
+      {/* --- MODAL DE TÉRMINOS Y CONDICIONES --- */}
+      {mostrarTerminos && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0,
+          width: '100%', height: '100%',
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000,
+          padding: '20px'
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '25px',
+            borderRadius: '20px',
+            maxWidth: '500px',
+            width: '100%',
+            maxHeight: '80vh',
+            overflowY: 'auto',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.1)'
+          }}>
+            <h3 style={{ marginBottom: '15px', color: '#1e293b' }}>📜 Términos y Condiciones</h3>
+            
+            <div style={{ fontSize: '0.85rem', color: '#475569', lineHeight: '1.6', textAlign: 'left' }}>
+              <p><strong>1. Acumulación de Puntos:</strong> Recibirás 2 puntos por cada visita confirmada mediante la validación del PIN por parte del personal del restaurante.</p>
+              
+              <p style={{ marginTop: '10px' }}><strong>2. Premios:</strong> Al completar 20 puntos, se activará un cupón de premio. Este debe ser presentado al mesero para su redención.</p>
+              
+              <p style={{ marginTop: '10px' }}><strong>3. Vencimiento:</strong> Tus puntos acumulados tienen una validez de 30 días calendario. Si no registras una nueva visita en este periodo, el contador volverá a cero.</p>
+              
+              <p style={{ marginTop: '10px' }}><strong>4. Uso de Datos:</strong> Al registrarte, autorizas el tratamiento de tus datos básicos únicamente para la gestión de este programa de fidelización.</p>
+            </div>
+
+            <button 
+              type="button"
+              onClick={() => setMostrarTerminos(false)}
+              style={{
+                marginTop: '20px',
+                width: '100%',
+                padding: '12px',
+                backgroundColor: '#6366f1',
+                color: 'white',
+                border: 'none',
+                borderRadius: '10px',
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+            >
+              Cerrar y Aceptar
+            </button>
+          </div>
+        </div>
+      )}
     </form>
   );
 };
