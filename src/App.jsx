@@ -10,11 +10,20 @@ import './App.css';
 function App() {
   // --- PARÁMETROS Y CONFIGURACIÓN ---
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
-  const restauranteID = useMemo(() => params.get('r') || '101 Bistro', [params]);
+
+  // CAMBIO REALIZADO AQUÍ: Decodificación y limpieza del ID del restaurante
+  const restauranteID = useMemo(() => {
+    const rRaw = params.get('r');
+    if (rRaw) {
+      // decodeURIComponent convierte "%20" en espacios reales y .trim() quita espacios extras
+      return decodeURIComponent(rRaw).trim();
+    }
+    return '101 Bistro';
+  }, [params]);
 
   // --- ESTADOS DE USUARIO (Persistencia Multisede) ---
   const [clienteId, setClienteId] = useState(() => {
-    // CAMBIO: Buscamos el ID específico para ESTE restaurante
+    // Se usa el restauranteID ya limpio para buscar en el storage
     const registros = JSON.parse(localStorage.getItem("bistro_multisede") || "{}");
     return registros[restauranteID] || null;
   });
@@ -25,9 +34,6 @@ function App() {
   // --- OTROS ESTADOS ---
   const [referidoPor, setReferidoPor] = useState("");
   const [bistroLoc, setBistroLoc] = useState(null);
-  const [hasNotified, setHasNotified] = useState(() => {
-    return localStorage.getItem('bistro_notified') === 'true';
-  });
 
   // Captura de referido
   useEffect(() => {
@@ -38,6 +44,8 @@ function App() {
   // Carga de datos del restaurante desde Firebase
   useEffect(() => {
     if (!restauranteID) return;
+    
+    // Ahora restauranteID coincide exactamente con el nombre de la colección en Firestore
     const docRef = doc(db, "restaurantes", restauranteID);
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       try {
@@ -46,9 +54,11 @@ function App() {
           if (data && typeof data.lat === 'number' && typeof data.lon === 'number') {
             setBistroLoc(data);
           }
+        } else {
+          console.warn(`El restaurante "${restauranteID}" no existe en la base de datos.`);
         }
       } catch (err) {
-        console.debug("Error en Firebase:", err);
+        console.error("Error en Firebase:", err);
       }
     });
     return () => unsubscribe(); 
@@ -60,14 +70,12 @@ function App() {
     bistroLoc?.lon ?? null
   );
 
-  // Lógica de éxito al registrarse (Actualizada para Multisede)
+  // Lógica de éxito al registrarse
   const handleSuccess = (nuevoId, nombre) => {
-    // CAMBIO: Guardamos el ID asociado al restaurante actual sin borrar otros
     const registros = JSON.parse(localStorage.getItem("bistro_multisede") || "{}");
     registros[restauranteID] = nuevoId;
     
     localStorage.setItem("bistro_multisede", JSON.stringify(registros));
-    // Mantenemos compatibilidad con tu lógica anterior por si acaso
     localStorage.setItem("clienteId", nuevoId); 
     
     setClienteId(nuevoId);
@@ -79,15 +87,17 @@ function App() {
   const config = useMemo(() => ({
     radioAviso: Number(bistroLoc?.radioAviso) || 800,
     mensaje: bistroLoc?.mensajePromo || 'CORTESÍA DISPONIBLE',
-    nombreBistro: bistroLoc?.nombre || '101 BISTRO'
-  }), [bistroLoc]);
+    nombreBistro: bistroLoc?.nombre || restauranteID // Usamos el ID limpio si no carga el nombre
+  }), [bistroLoc, restauranteID]);
 
   // --- RENDERIZADO CONDICIONAL ---
 
   if (!bistroLoc) {
     return (
       <div className="main-wrapper" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <div style={{ textAlign: 'center', opacity: 0.6 }}>⌛ Conectando con {restauranteID}...</div>
+        <div style={{ textAlign: 'center', opacity: 0.6 }}>
+          ⌛ Conectando con {restauranteID}...
+        </div>
       </div>
     );
   }
@@ -116,6 +126,7 @@ function App() {
 
       {geoError && <div className="error-alert">⚠️ {geoError}</div>}
 
+      {/* Indicador de Distancia */}
       {typeof distancia === 'number' ? (
         <div className={`proximity-badge ${esCerca ? 'near' : ''}`}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', justifyContent: 'center' }}>
