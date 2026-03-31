@@ -1,6 +1,13 @@
 import { useState } from 'react';
 import { db } from '../services/firebaseConfig';
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { 
+  collection, 
+  addDoc, 
+  serverTimestamp, 
+  query, 
+  where, 
+  getDocs 
+} from "firebase/firestore";
 
 // Recibe onSuccess, restaurantId y referidoPor desde App.js
 export const RegistrationForm = ({ onSuccess, restaurantId, referidoPor }) => {
@@ -32,33 +39,50 @@ export const RegistrationForm = ({ onSuccess, restaurantId, referidoPor }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // 1. Validaciones de campos vacíos
+    // 1. Validaciones básicas
     if (!formData.nombre.trim() || !formData.telefono.trim() || !formData.fechaNacimiento) {
       alert("Por favor, completa todos los campos.");
       return;
     }
 
     setLoading(true);
+
     try {
-      // 2. Creamos el objeto del nuevo cliente con los cambios solicitados
+      // 2. VALIDAR SI EL CLIENTE YA EXISTE EN ESTE RESTAURANTE
+      const q = query(
+        collection(db, "clientes"),
+        where("telefono", "==", formData.telefono.trim()),
+        where("restauranteId", "==", restaurantId)
+      );
+
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        alert("Ya estás registrado en este restaurante. ¡Solo puedes unirte una vez!");
+        setLoading(false);
+        return; 
+      }
+
+      // 3. SI NO EXISTE, PROCEDER CON EL REGISTRO
       const nuevoCliente = {
         nombre: formData.nombre.trim(),
         telefono: formData.telefono.trim(),
         fechaNacimiento: formData.fechaNacimiento,
         restauranteId: restaurantId,
-        // Usamos serverTimestamp para consistencia en la base de datos, 
-        // o new Date().toISOString() si prefieres string plano.
+        puntos: 2, 
+        ultimaVisita: serverTimestamp(),
         fechaRegistro: serverTimestamp(), 
         referidoPor: referidoPor || "Directo (QR local)",
         origen: "Web App"
       };
 
-      // 3. Guardamos en la colección "clientes"
-      await addDoc(collection(db, "clientes"), nuevoCliente);
+      // 4. GUARDAMOS EN FIREBASE Y CAPTURAMOS LA REFERENCIA
+      const docRef = await addDoc(collection(db, "clientes"), nuevoCliente);
       
-      // 4. Notificamos éxito al componente padre pasando el nombre
+      // 5. NOTIFICAMOS ÉXITO AL PADRE (App.jsx)
+      // Enviamos el ID generado por Firebase y el nombre del cliente
       if (onSuccess) {
-        onSuccess(formData.nombre.trim()); 
+        onSuccess(docRef.id, formData.nombre.trim()); 
       }
 
     } catch (error) {

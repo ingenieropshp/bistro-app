@@ -162,3 +162,21 @@ main {
   .registration-card { padding: 1.5rem; }
   .bistro-title { font-size: 2.2rem !important; }
 }
+
+.main-wrapper {
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 20px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}

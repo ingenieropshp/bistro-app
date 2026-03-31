@@ -2,10 +2,12 @@ import { initializeApp } from "firebase/app";
 import { 
   initializeFirestore, 
   persistentLocalCache, 
-  persistentMultipleTabManager 
+  persistentMultipleTabManager,
+  collection, // <--- Agregado
+  addDoc,     // <--- Agregado
+  serverTimestamp // <--- Agregado
 } from "firebase/firestore";
 
-// Configuración extraída de las variables de entorno (.env)
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -15,15 +17,9 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-// Inicialización de la aplicación Firebase
 const app = initializeApp(firebaseConfig);
 
-/**
- * Optimizamos la conexión de Firestore para 101 Bistro.
- * 'experimentalForceLongPolling' elimina los errores 403.
- * 'localCache' con 'persistentMultipleTabManager' reemplaza a 'enableIndexedDbPersistence'
- * solucionando el aviso de múltiples pestañas abiertas.
- */
+// Optimizamos la conexión de Firestore
 export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
   localCache: persistentLocalCache({
@@ -31,5 +27,7 @@ export const db = initializeFirestore(app, {
   })
 });
 
-// Exportamos la app por si necesitas usar Auth o Storage más adelante
+// Exportamos las utilidades para que sea más fácil importarlas en tus componentes
+export { collection, addDoc, serverTimestamp };
+
 export default app;
