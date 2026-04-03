@@ -1,13 +1,5 @@
 import { useState } from 'react';
-import { db } from '../services/firebaseConfig';
-import { 
-  collection, 
-  addDoc, 
-  serverTimestamp, 
-  query, 
-  where, 
-  getDocs 
-} from "firebase/firestore";
+import { supabase } from '../services/supabaseClient'; // Importación de tu cliente Supabase
 
 // Recibe onSuccess, restaurantId y referidoPor desde App.js
 export const RegistrationForm = ({ onSuccess, restaurantId, referidoPor }) => {
@@ -51,49 +43,50 @@ export const RegistrationForm = ({ onSuccess, restaurantId, referidoPor }) => {
     setLoading(true);
 
     try {
-      // 2. VALIDAR SI EL CLIENTE YA EXISTE EN ESTE RESTAURANTE
-      const q = query(
-        collection(db, "clientes"),
-        where("telefono", "==", formData.telefono.trim()),
-        where("restauranteId", "==", restaurantId)
-      );
+      // 2. VALIDAR SI EL CLIENTE YA EXISTE EN ESTE RESTAURANTE (Lógica Supabase)
+      const { data: existente, error: errorBusqueda } = await supabase
+        .from('clientes')
+        .select('id')
+        .eq('telefono', formData.telefono.trim())
+        .eq('restaurante_id', restaurantId)
+        .maybeSingle();
 
-      const querySnapshot = await getDocs(q);
+      if (errorBusqueda) throw errorBusqueda;
 
-      if (!querySnapshot.empty) {
+      if (existente) {
         alert("Ya estás registrado en este restaurante. ¡Solo puedes unirte una vez!");
         setLoading(false);
         return; 
       }
 
       // 3. SI NO EXISTE, PROCEDER CON EL REGISTRO
-      const nuevoCliente = {
-        nombre: formData.nombre.trim(),
-        telefono: formData.telefono.trim(),
-        fechaNacimiento: formData.fechaNacimiento,
-        restauranteId: restaurantId, 
-        puntos: 2, 
-        ultimaVisita: serverTimestamp(),
-        fechaRegistro: serverTimestamp(), 
-        referidopor: referidoPor || "Directo (QR local)",
-        origen: "Web App"
-      };
-
-      // 4. GUARDAMOS EN FIREBASE Y CAPTURAMOS LA REFERENCIA
-      const docRef = await addDoc(collection(db, "clientes"), nuevoCliente);
+      // MODIFICADO: Se usan los valores exactos solicitados
+      const { data, error: errorInsert } = await supabase
+        .from('clientes')
+        .insert([
+          {
+            nombre: formData.nombre.trim(),
+            telefono: formData.telefono.trim(),
+            puntos: 0, // Valor inicial solicitado
+            origen: 'Registro Web', // Origen solicitado
+            restaurante_id: restaurantId, // Usamos el id que viene por props
+            referidopor: referidoPor || "Directo (QR local)",
+            fecha_registro: new Date().toISOString() // Campo de fecha solicitado
+          }
+        ])
+        .select()
+        .single();
       
+      if (errorInsert) throw errorInsert;
+
       // 5. NOTIFICAMOS ÉXITO AL PADRE (App.jsx)
       if (onSuccess) {
-        onSuccess(docRef.id, formData.nombre.trim()); 
+        onSuccess(data.id, formData.nombre.trim()); 
       }
 
     } catch (error) {
-      console.error("Error detallado de Firebase:", error);
-      if (error.code === 'permission-denied') {
-        alert("Error de permisos: Revisa las reglas de seguridad en Firebase.");
-      } else {
-        alert("Hubo un problema al registrar. Por favor, intenta de nuevo.");
-      }
+      console.error("Error detallado:", error);
+      alert("Hubo un problema al registrar. Por favor, intenta de nuevo.");
     } finally {
       setLoading(false);
     }

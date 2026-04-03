@@ -3,16 +3,15 @@ import { RegistrationForm } from './components/RegistrationForm';
 import { SuccessCard } from './components/SuccessCard'; 
 import { UserDashboard } from './components/UserDashboard'; 
 import { useLocation } from './hooks/useLocation';
-// IMPORTACIONES ACTUALIZADAS PARA LA QUERY
-import { collection, query, where, onSnapshot } from "firebase/firestore";
-import { db } from './services/firebaseConfig'; 
+
+// IMPORTACIONES ACTUALIZADAS PARA SUPABASE
+import { supabase } from './services/supabaseClient'; 
 import './App.css';
 
 function App() {
   // --- PARÁMETROS Y CONFIGURACIÓN ---
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
 
-  // Decodificación y limpieza del ID del restaurante
   const restauranteID = useMemo(() => {
     const rRaw = params.get('r');
     if (rRaw) {
@@ -21,7 +20,7 @@ function App() {
     return '101 Bistro';
   }, [params]);
 
-  // --- ESTADOS DE USUARIO (Persistencia Multisede) ---
+  // --- ESTADOS DE USUARIO ---
   const [clienteId, setClienteId] = useState(() => {
     const registros = JSON.parse(localStorage.getItem("bistro_multisede") || "{}");
     return registros[restauranteID] || null;
@@ -34,36 +33,54 @@ function App() {
   const [referidoPor, setReferidoPor] = useState("");
   const [bistroLoc, setBistroLoc] = useState(null);
 
-  // Captura de referido
   useEffect(() => {
     const ref = params.get('ref');
     if (ref) setReferidoPor(ref);
   }, [params]);
 
-  // --- CAMBIO APLICADO: Carga de datos del restaurante mediante QUERY por nombre ---
+  // --- CARGA DE DATOS Y SUSCRIPCIÓN (VERSION OPTIMIZADA) ---
   useEffect(() => {
     if (!restauranteID) return;
 
-    // En lugar de buscar por ID de documento, buscamos por el campo 'nombre'
-    const q = query(collection(db, "restaurantes"), where("nombre", "==", restauranteID));
-    
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      try {
-        if (!querySnapshot.empty) {
-          // Tomamos el primer resultado que coincida
-          const docSnap = querySnapshot.docs[0];
-          const data = docSnap.data();
-          if (data && typeof data.lat === 'number' && typeof data.lon === 'number') {
-            setBistroLoc(data);
-          }
-        } else {
-          console.warn(`No se encontró configuración para: "${restauranteID}"`);
+    // 1. Configuración del canal de Realtime
+    const channel = supabase
+      .channel(`public:restaurantes:${restauranteID}`)
+      .on(
+        'postgres_changes',
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'restaurantes', 
+          filter: `nombre=eq.${restauranteID}` 
+        },
+        (payload) => {
+          console.log("Cambio detectado en Realtime:", payload.new);
+          setBistroLoc(payload.new);
         }
-      } catch (err) {
-        console.error("Error en Firebase:", err);
+      )
+      .subscribe();
+
+    // 2. Función de carga inicial separada
+    const loadData = async () => {
+      const { data, error } = await supabase
+        .from('restaurantes')
+        .select('*')
+        .eq('nombre', restauranteID)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Error cargando restaurante:", error);
+      } else if (data) {
+        setBistroLoc(data);
       }
-    });
-    return () => unsubscribe(); 
+    };
+
+    loadData();
+
+    // 3. Limpieza garantizada al desmontar el componente
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [restauranteID]);
 
   // Lógica de ubicación
@@ -72,7 +89,6 @@ function App() {
     bistroLoc?.lon ?? null
   );
 
-  // Lógica de éxito al registrarse
   const handleSuccess = (nuevoId, nombre) => {
     const registros = JSON.parse(localStorage.getItem("bistro_multisede") || "{}");
     registros[restauranteID] = nuevoId;
@@ -85,14 +101,11 @@ function App() {
     setIsRegisteredNow(true); 
   };
 
-  // Configuración de textos
   const config = useMemo(() => ({
-    radioAviso: Number(bistroLoc?.radioAviso) || 800,
-    mensaje: bistroLoc?.mensajePromo || 'CORTESÍA DISPONIBLE',
+    radioAviso: Number(bistroLoc?.radio_aviso) || 800,
+    mensaje: bistroLoc?.mensaje_promo || 'CORTESÍA DISPONIBLE',
     nombreBistro: bistroLoc?.nombre || restauranteID 
   }), [bistroLoc, restauranteID]);
-
-  // --- RENDERIZADO CONDICIONAL ---
 
   if (!bistroLoc) {
     return (
@@ -128,7 +141,6 @@ function App() {
 
       {geoError && <div className="error-alert">⚠️ {geoError}</div>}
 
-      {/* Indicador de Distancia */}
       {typeof distancia === 'number' ? (
         <div className={`proximity-badge ${esCerca ? 'near' : ''}`}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', justifyContent: 'center' }}>
@@ -156,7 +168,8 @@ function App() {
           />
         ) : (
           <RegistrationForm 
-            restaurantId={restauranteID} 
+            /* CAMBIO CLAVE: Enviamos el UUID que cargamos de la DB para evitar error de sintaxis */
+            restaurantId={bistroLoc.id} 
             referidoPor={referidoPor} 
             onSuccess={(id, nombre) => handleSuccess(id, nombre)} 
           />

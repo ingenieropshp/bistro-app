@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
-import { db } from '../services/firebaseConfig';
-import { doc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
+import { supabase } from '../services/supabaseClient'; // Importación de tu cliente Supabase
 
 // --- FUNCIÓN DE CÁLCULO DE DISTANCIA (Haversine) ---
 const calcularDistancia = (lat1, lon1, lat2, lon2) => {
@@ -21,21 +20,25 @@ export const SuccessCard = ({
   nombreCliente, 
   clienteId, 
   puntosActuales = 0,
-  onClose // 1. Recibimos onClose para el botón continuar
+  onClose 
 }) => {
   
-  // --- LÓGICA DE LLEGADA / PUNTOS CON GEOCERCA ---
+  // --- LÓGICA DE LLEGADA / PUNTOS CON GEOCERCA (Migrado a Supabase) ---
   const manejarLlegada = async (id, puntos) => {
     try {
-      const restRef = doc(db, "restaurantes", restauranteId);
-      const restSnap = await getDoc(restRef);
+      // 1. Obtener datos del restaurante por su nombre (restauranteId en este contexto)
+      const { data: restData, error: errorRest } = await supabase
+        .from('restaurantes')
+        .select('lat, lon, radioAviso')
+        .eq('nombre', restauranteId)
+        .maybeSingle();
 
-      if (!restSnap.exists()) {
-        console.error("Restaurante no encontrado");
+      if (errorRest || !restData) {
+        console.error("Restaurante no encontrado en Supabase");
         return;
       }
 
-      const { lat: restLat, lon: restLon, radioAviso = 200 } = restSnap.data();
+      const { lat: restLat, lon: restLon, radioAviso = 200 } = restData;
 
       navigator.geolocation.getCurrentPosition(async (position) => {
         const userLat = position.coords.latitude;
@@ -47,14 +50,20 @@ export const SuccessCard = ({
         if (distanciaMetros <= radioAviso) {
           const nuevosPuntos = puntos + 2;
           const tienePremio = nuevosPuntos >= 20;
-          const clienteRef = doc(db, "clientes", id);
 
-          await updateDoc(clienteRef, {
-            puntos: nuevosPuntos,
-            ultimaVisita: serverTimestamp(),
-            reclamoPendiente: tienePremio 
-          });
+          // 2. Actualizar puntos del cliente en Supabase
+          const { error: errorUpdate } = await supabase
+            .from('clientes')
+            .update({
+              puntos: nuevosPuntos,
+              ultima_visita: new Date().toISOString(), // Supabase usa strings ISO para timestamps
+              reclamo_pendiente: tienePremio 
+            })
+            .eq('id', id);
 
+          if (errorUpdate) throw errorUpdate;
+
+          // Mensajes de feedback
           if (nuevosPuntos >= 18 && nuevosPuntos < 20) {
             alert("¡Estás a solo una visita de tu premio! 🌟");
           } else if (tienePremio) {
@@ -70,7 +79,7 @@ export const SuccessCard = ({
       }, { enableHighAccuracy: true });
 
     } catch (err) {
-      console.error("Error al actualizar puntos:", err);
+      console.error("Error al actualizar puntos en Supabase:", err);
     }
   };
 
@@ -113,12 +122,10 @@ export const SuccessCard = ({
     }}>
       <div style={{ fontSize: '4.5rem', marginBottom: '1rem' }}>🎁</div>
       
-      {/* Usamos nombreCliente como en tu primer bloque */}
       <h2 style={{ color: 'var(--accent, #3b82f6)', marginBottom: '0.5rem', fontSize: '1.8rem' }}>
         ¡LISTO, {nombreCliente?.toUpperCase()}!
       </h2>
       
-      {/* 2. Referencia dinámica al restaurante */}
       <p style={{ marginBottom: '1.5rem', lineHeight: '1.6', color: '#475569' }}>
         Ahora eres embajador de <strong>{nombreRestaurante || "nuestro restaurante"}</strong>.
       </p>
@@ -146,7 +153,6 @@ export const SuccessCard = ({
           <span style={{ fontSize: '1.2rem' }}>📢</span> INVITAR UN AMIGO
         </button>
 
-        {/* Botón Continuar usando la prop onClose */}
         <button 
           onClick={onClose || (() => window.location.reload())} 
           className="btn-confirmar"

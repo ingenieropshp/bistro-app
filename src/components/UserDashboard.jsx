@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react';
-import { db } from '../services/firebaseConfig';
-// Se agregaron collection y addDoc a los imports
-import { doc, getDoc, updateDoc, increment, serverTimestamp, collection, addDoc } from "firebase/firestore";
+import { supabase } from '../services/supabaseClient'; // Importación de tu cliente Supabase
 import './UserDashboard.css'; 
 
 const calcularDistancia = (lat1, lon1, lat2, lon2) => {
@@ -25,11 +23,19 @@ export const UserDashboard = ({ restauranteId, clienteId, nombreRestaurante }) =
     const fetchCliente = async () => {
       if (!clienteId) return;
       try {
-        const snap = await getDoc(doc(db, "clientes", clienteId));
-        if (snap.exists()) {
-          setCliente(snap.data());
+        // Consultar cliente en Supabase
+        const { data, error } = await supabase
+          .from('clientes')
+          .select('*')
+          .eq('id', clienteId)
+          .maybeSingle();
+
+        if (error) throw error;
+
+        if (data) {
+          setCliente(data);
         } else {
-          console.warn("Cliente no encontrado en Firebase. Limpiando datos obsoletos...");
+          console.warn("Cliente no encontrado en Supabase. Limpiando datos obsoletos...");
           const registros = JSON.parse(localStorage.getItem("bistro_multisede") || "{}");
           delete registros[restauranteId];
           localStorage.setItem("bistro_multisede", JSON.stringify(registros));
@@ -44,8 +50,9 @@ export const UserDashboard = ({ restauranteId, clienteId, nombreRestaurante }) =
   }, [clienteId, restauranteId]);
 
   const obtenerDiasRestantes = () => {
-    if (!cliente || !cliente.fechaCumplimiento) return null;
-    const fechaInicio = cliente.fechaCumplimiento.toDate();
+    if (!cliente || !cliente.fecha_cumplimiento) return null;
+    // En Supabase las fechas vienen como string ISO
+    const fechaInicio = new Date(cliente.fecha_cumplimiento);
     const fechaVencimiento = new Date(fechaInicio);
     fechaVencimiento.setDate(fechaInicio.getDate() + 30); 
     const hoy = new Date();
@@ -72,44 +79,60 @@ export const UserDashboard = ({ restauranteId, clienteId, nombreRestaurante }) =
     if (procesando) return;
     setProcesando(true);
     try {
-      const restSnap = await getDoc(doc(db, "restaurantes", restauranteId));
-      if (!restSnap.exists()) {
+      // Consultar restaurante en Supabase
+      const { data: restData, error } = await supabase
+        .from('restaurantes')
+        .select('lat, lon, radioAviso')
+        .eq('nombre', restauranteId) // Asumiendo que restauranteId es el nombre según tu App.jsx
+        .maybeSingle();
+
+      if (error || !restData) {
         alert("Error: No se encontró la ubicación del restaurante.");
         setProcesando(false);
         return;
       }
-      const { lat, lon, radioAviso = 100 } = restSnap.data();
+
+      const { lat, lon, radioAviso = 100 } = restData;
       
+      const geoOptions = {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      };
+
       navigator.geolocation.getCurrentPosition(async (pos) => {
         const distMetros = calcularDistancia(pos.coords.latitude, pos.coords.longitude, lat, lon) * 1000;
+        
+        console.log(`[GPS] Distancia: ${distMetros.toFixed(2)}m | Radio Permitido: ${radioAviso}m`);
 
-        // --- REGISTRO PARA EL DUEÑO (MÉTRICAS) ---
+        // --- REGISTRO DE MÉTRICAS EN SUPABASE ---
         try {
-          await addDoc(collection(db, "metricas_proximidad"), {
+          await supabase.from('metricas_proximidad').insert([{
             cliente: cliente?.nombre || "Anónimo",
             restaurante: nombreRestaurante,
-            restauranteId: restauranteId,
+            restaurante_id: restauranteId,
             distancia: Math.round(distMetros),
-            dentroDelRango800: distMetros <= 800,
-            esExitoTotal: distMetros <= radioAviso,
-            fecha: serverTimestamp()
-          });
+            dentro_del_rango_800: distMetros <= 800,
+            es_exito_total: distMetros <= radioAviso
+          }]);
         } catch (err) {
           console.error("Error al guardar métricas:", err);
         }
-        // ------------------------------------------
 
         if (distMetros <= radioAviso) {
           setEsCerca(true);
           setMostrarPin(true);
         } else {
-          alert(`📍 Estás fuera del rango permitido. Distancia actual: ${distMetros.toFixed(0)}m.`);
+          alert(`📍 Estás a ${distMetros.toFixed(0)} metros. \nDebes estar a menos de ${radioAviso} metros de ${nombreRestaurante} para confirmar llegada.`);
         }
         setProcesando(false);
       }, (error) => {
-        alert("Por favor activa el GPS para confirmar tu llegada.");
+        let msg = "Por favor activa el GPS para confirmar tu llegada.";
+        if (error.code === 1) msg = "Debes permitir el acceso a la ubicación en tu navegador.";
+        alert(msg);
         setProcesando(false);
-      }, { enableHighAccuracy: true });
+      }, geoOptions);
+
     } catch (e) {
       console.error(e);
       setProcesando(false);
@@ -130,25 +153,30 @@ export const UserDashboard = ({ restauranteId, clienteId, nombreRestaurante }) =
         return;
       }
 
-      const clienteRef = doc(db, "clientes", clienteId);
       const nuevosPuntos = (cliente.puntos || 0) + 2;
       const updates = {
-        puntos: increment(2),
-        ultimaVisita: serverTimestamp(),
+        puntos: nuevosPuntos,
+        ultima_visita: new Date().toISOString(),
       };
 
       if (nuevosPuntos >= 20) {
-        updates.reclamoPendiente = true;
-        updates.fechaCumplimiento = serverTimestamp();
+        updates.reclamo_pendiente = true;
+        updates.fecha_cumplimiento = new Date().toISOString();
       }
 
-      await updateDoc(clienteRef, updates);
+      // Actualizar cliente en Supabase
+      const { error } = await supabase
+        .from('clientes')
+        .update(updates)
+        .eq('id', clienteId);
+
+      if (error) throw error;
 
       setCliente(prev => ({ 
         ...prev, 
         puntos: nuevosPuntos,
-        reclamoPendiente: nuevosPuntos >= 20 ? true : prev.reclamoPendiente,
-        fechaCumplimiento: nuevosPuntos >= 20 ? hoy : prev.fechaCumplimiento
+        reclamo_pendiente: nuevosPuntos >= 20 ? true : prev.reclamo_pendiente,
+        fecha_cumplimiento: nuevosPuntos >= 20 ? updates.fecha_cumplimiento : prev.fecha_cumplimiento
       }));
       
       if (nuevosPuntos >= 20) {
@@ -162,6 +190,7 @@ export const UserDashboard = ({ restauranteId, clienteId, nombreRestaurante }) =
       setEsCerca(false);
     } catch (error) {
       console.error("Error en validación:", error);
+      alert("Error al actualizar puntos.");
     }
     setProcesando(false);
   };
@@ -190,7 +219,7 @@ export const UserDashboard = ({ restauranteId, clienteId, nombreRestaurante }) =
       
       <p className="subtitle">Ahora eres embajador de <strong>{nombreRestaurante}</strong>.</p>
 
-      {cliente.reclamoPendiente && (
+      {cliente.reclamo_pendiente && (
         <div className="coupon-card-container animate-bounce-slow">
           <div className="coupon-card">
             <div className="coupon-left">
@@ -205,7 +234,7 @@ export const UserDashboard = ({ restauranteId, clienteId, nombreRestaurante }) =
             </div>
             <div className="coupon-right">
               <div className="coupon-id">
-                {clienteId.substring(0, 5).toUpperCase()}
+                {clienteId.toString().substring(0, 5).toUpperCase()}
               </div>
             </div>
             <div className="punch-hole-top"></div>
@@ -237,6 +266,7 @@ export const UserDashboard = ({ restauranteId, clienteId, nombreRestaurante }) =
             <input
               type="tel" pattern="[0-9]*" maxLength="4"
               value={pinIngresado}
+              autoFocus
               onChange={(e) => setPinIngresado(e.target.value.replace(/\D/g, ""))}
               placeholder="0000"
               className="w-full text-center text-4xl font-black tracking-[1rem] py-3 border-b-4 border-indigo-500 focus:outline-none bg-transparent mb-6"
