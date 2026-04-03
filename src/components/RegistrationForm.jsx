@@ -67,7 +67,7 @@ export const RegistrationForm = ({ onSuccess, restaurantId, referidoPor }) => {
           {
             nombre: formData.nombre.trim(),
             telefono: formData.telefono.trim(),
-            puntos: 0, // Valor inicial solicitado
+            puntos: 2, // Valor inicial solicitado
             origen: 'Registro Web', // Origen solicitado
             restaurante_id: restaurantId, // Usamos el id que viene por props
             referidopor: referidoPor || "Directo (QR local)",
