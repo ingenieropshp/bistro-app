@@ -29,6 +29,17 @@ function App() {
   const [nombreCliente, setNombreCliente] = useState(""); 
   const [isRegisteredNow, setIsRegisteredNow] = useState(false); 
 
+  // --- NUEVO: EFECTO PARA CAMBIO DE SEDE DINÁMICO ---
+  // Esto asegura que si el usuario cambia de restaurante en la URL, 
+  // el estado de clienteId se actualice sin recargar la página.
+  useEffect(() => {
+    const registros = JSON.parse(localStorage.getItem("bistro_multisede") || "{}");
+    const idEnEstaSede = registros[restauranteID] || null;
+    if (idEnEstaSede !== clienteId) {
+      setClienteId(idEnEstaSede);
+    }
+  }, [restauranteID]);
+
   // --- OTROS ESTADOS ---
   const [referidoPor, setReferidoPor] = useState("");
   const [bistroLoc, setBistroLoc] = useState(null);
@@ -38,11 +49,10 @@ function App() {
     if (ref) setReferidoPor(ref);
   }, [params]);
 
-  // --- CARGA DE DATOS Y SUSCRIPCIÓN (VERSION OPTIMIZADA) ---
+  // --- CARGA DE DATOS Y SUSCRIPCIÓN ---
   useEffect(() => {
     if (!restauranteID) return;
 
-    // 1. Configuración del canal de Realtime
     const channel = supabase
       .channel(`public:restaurantes:${restauranteID}`)
       .on(
@@ -60,7 +70,6 @@ function App() {
       )
       .subscribe();
 
-    // 2. Función de carga inicial separada
     const loadData = async () => {
       const { data, error } = await supabase
         .from('restaurantes')
@@ -77,7 +86,6 @@ function App() {
 
     loadData();
 
-    // 3. Limpieza garantizada al desmontar el componente
     return () => {
       supabase.removeChannel(channel);
     };
@@ -168,7 +176,6 @@ function App() {
           />
         ) : (
           <RegistrationForm 
-            /* CAMBIO CLAVE: Enviamos el UUID que cargamos de la DB para evitar error de sintaxis */
             restaurantId={bistroLoc.id} 
             referidoPor={referidoPor} 
             onSuccess={(id, nombre) => handleSuccess(id, nombre)} 
