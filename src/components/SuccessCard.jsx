@@ -28,7 +28,7 @@ export const SuccessCard = ({
     try {
       // 1. Obtener datos del restaurante por su nombre (restauranteId en este contexto)
       const { data: restData, error: errorRest } = await supabase
-        .from('restaurantes')
+        .from('configuracion')
         .select('lat, lon, radioAviso')
         .eq('nombre', restauranteId)
         .maybeSingle();
