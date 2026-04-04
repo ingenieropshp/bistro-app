@@ -60,13 +60,14 @@ export const RegistrationForm = ({ onSuccess, restaurantId, referidoPor }) => {
       }
 
       // 3. SI NO EXISTE, PROCEDER CON EL REGISTRO
-      // MODIFICADO: Se usan los valores exactos solicitados
+      // MODIFICADO: Se añade fecha_nacimiento al objeto sin alterar el resto
       const { data, error: errorInsert } = await supabase
         .from('clientes')
         .insert([
           {
             nombre: formData.nombre.trim(),
             telefono: formData.telefono.trim(),
+            fecha_nacimiento: formData.fechaNacimiento, // <--- CAMBIO: Se agrega este campo
             puntos: 2, // Valor inicial solicitado
             origen: 'Registro Web', // Origen solicitado
             restaurante_id: restaurantId, // Usamos el id que viene por props

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../services/supabaseClient'; // Importación de tu cliente Supabase
+import { supabase } from '../services/supabaseClient'; 
 import './UserDashboard.css'; 
 
 const calcularDistancia = (lat1, lon1, lat2, lon2) => {
@@ -12,10 +12,17 @@ const calcularDistancia = (lat1, lon1, lat2, lon2) => {
   return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 };
 
-export const UserDashboard = ({ restauranteId, clienteId, nombreRestaurante }) => {
+// Se mantienen las props originales añadiendo las necesarias para la nueva lógica
+export const UserDashboard = ({ 
+  restauranteId, // Este ahora debe ser el UUID del restaurante (restaurante_id)
+  clienteId, 
+  nombreRestaurante,
+  distancia, // Añadido según tu requerimiento
+  esCerca: inicialEsCerca // Añadido según tu requerimiento
+}) => {
   const [cliente, setCliente] = useState(null);
   const [procesando, setProcesando] = useState(false);
-  const [esCerca, setEsCerca] = useState(false);
+  const [esCerca, setEsCerca] = useState(inicialEsCerca || false); // Se inicializa con la prop si existe
   const [mostrarPin, setMostrarPin] = useState(false);
   const [pinIngresado, setPinIngresado] = useState("");
 
@@ -23,7 +30,6 @@ export const UserDashboard = ({ restauranteId, clienteId, nombreRestaurante }) =
     const fetchCliente = async () => {
       if (!clienteId) return;
       try {
-        // Consultar cliente en Supabase
         const { data, error } = await supabase
           .from('clientes')
           .select('*')
@@ -37,6 +43,7 @@ export const UserDashboard = ({ restauranteId, clienteId, nombreRestaurante }) =
         } else {
           console.warn("Cliente no encontrado en Supabase. Limpiando datos obsoletos...");
           const registros = JSON.parse(localStorage.getItem("bistro_multisede") || "{}");
+          // Se usa el restauranteId (UUID) para limpiar el registro correcto
           delete registros[restauranteId];
           localStorage.setItem("bistro_multisede", JSON.stringify(registros));
           window.location.reload();
@@ -51,7 +58,6 @@ export const UserDashboard = ({ restauranteId, clienteId, nombreRestaurante }) =
 
   const obtenerDiasRestantes = () => {
     if (!cliente || !cliente.fecha_cumplimiento) return null;
-    // En Supabase las fechas vienen como string ISO
     const fechaInicio = new Date(cliente.fecha_cumplimiento);
     const fechaVencimiento = new Date(fechaInicio);
     fechaVencimiento.setDate(fechaInicio.getDate() + 30); 
@@ -79,38 +85,43 @@ export const UserDashboard = ({ restauranteId, clienteId, nombreRestaurante }) =
     if (procesando) return;
     setProcesando(true);
     try {
-      // Consultar restaurante en Supabase
       const { data: restData, error } = await supabase
-        .from('restaurantes')
-        .select('lat, lon, radioAviso')
-        .eq('nombre', restauranteId) // Asumiendo que restauranteId es el nombre según tu App.jsx
+        .from('configuracion')
+        .select('latitud, longitud, radio_aviso')
+        .eq('id', restauranteId) // Buscamos por el UUID real del restaurante
         .maybeSingle();
 
       if (error || !restData) {
-        alert("Error: No se encontró la ubicación del restaurante.");
+        alert("Error: No se encontró la configuración de la sede.");
         setProcesando(false);
         return;
       }
 
-      const { lat, lon, radioAviso = 100 } = restData;
+      const latRestaurante = restData.latitud;
+      const lonRestaurante = restData.longitud;
+      const radioAviso = restData.radio_aviso || 100;
       
       const geoOptions = {
         enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
+        timeout: 15000, 
+        maximumAge: 0  
       };
 
       navigator.geolocation.getCurrentPosition(async (pos) => {
-        const distMetros = calcularDistancia(pos.coords.latitude, pos.coords.longitude, lat, lon) * 1000;
+        const distMetros = calcularDistancia(
+          pos.coords.latitude, 
+          pos.coords.longitude, 
+          latRestaurante, 
+          lonRestaurante
+        ) * 1000;
         
         console.log(`[GPS] Distancia: ${distMetros.toFixed(2)}m | Radio Permitido: ${radioAviso}m`);
 
-        // --- REGISTRO DE MÉTRICAS EN SUPABASE ---
         try {
           await supabase.from('metricas_proximidad').insert([{
             cliente: cliente?.nombre || "Anónimo",
             restaurante: nombreRestaurante,
-            restaurante_id: restauranteId,
+            restaurante_id: restauranteId, // Guardamos con el UUID correcto
             distancia: Math.round(distMetros),
             dentro_del_rango_800: distMetros <= 800,
             es_exito_total: distMetros <= radioAviso
@@ -123,12 +134,13 @@ export const UserDashboard = ({ restauranteId, clienteId, nombreRestaurante }) =
           setEsCerca(true);
           setMostrarPin(true);
         } else {
-          alert(`📍 Estás a ${distMetros.toFixed(0)} metros. \nDebes estar a menos de ${radioAviso} metros de ${nombreRestaurante} para confirmar llegada.`);
+          alert(`📍 Estás a ${distMetros.toFixed(0)} metros. \n\nPara confirmar tu llegada y sumar puntos, debes estar a menos de ${radioAviso} metros de ${nombreRestaurante}.`);
         }
         setProcesando(false);
       }, (error) => {
         let msg = "Por favor activa el GPS para confirmar tu llegada.";
         if (error.code === 1) msg = "Debes permitir el acceso a la ubicación en tu navegador.";
+        if (error.code === 3) msg = "La señal del GPS es débil. Intenta de nuevo en un espacio más abierto.";
         alert(msg);
         setProcesando(false);
       }, geoOptions);
@@ -164,7 +176,6 @@ export const UserDashboard = ({ restauranteId, clienteId, nombreRestaurante }) =
         updates.fecha_cumplimiento = new Date().toISOString();
       }
 
-      // Actualizar cliente en Supabase
       const { error } = await supabase
         .from('clientes')
         .update(updates)

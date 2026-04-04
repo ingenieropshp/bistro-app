@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { supabase } from '../services/supabaseClient'; // Importación de tu cliente Supabase
+import { supabase } from '../services/supabaseClient';
 
 // --- FUNCIÓN DE CÁLCULO DE DISTANCIA (Haversine) ---
 const calcularDistancia = (lat1, lon1, lat2, lon2) => {
@@ -23,63 +23,70 @@ export const SuccessCard = ({
   onClose 
 }) => {
   
-  // --- LÓGICA DE LLEGADA / PUNTOS CON GEOCERCA (Migrado a Supabase) ---
   const manejarLlegada = async (id, puntos) => {
+    console.log("1. Iniciando validación para restaurante ID:", restauranteId);
     try {
-      // 1. Obtener datos del restaurante por su nombre (restauranteId en este contexto)
+      // Se mantiene la consulta a la tabla 'conexion' según tu base de datos
       const { data: restData, error: errorRest } = await supabase
-        .from('configuracion')
-        .select('lat, lon, radioAviso')
-        .eq('nombre', restauranteId)
+        .from('conexion') 
+        .select('latitud, longitud, radio_aviso')
+        .eq('id', restauranteId) 
         .maybeSingle();
 
       if (errorRest || !restData) {
-        console.error("Restaurante no encontrado en Supabase");
+        console.error("2. Error: No se encontraron datos en la tabla 'conexion':", errorRest);
         return;
       }
 
-      const { lat: restLat, lon: restLon, radioAviso = 200 } = restData;
+      console.log("3. Datos de ubicación del restaurante obtenidos:", restData);
+      const { latitud: restLat, longitud: restLon, radio_aviso = 200 } = restData;
 
+      console.log("4. Solicitando ubicación al navegador...");
+      
       navigator.geolocation.getCurrentPosition(async (position) => {
+        console.log("5. Ubicación del usuario recibida con éxito.");
         const userLat = position.coords.latitude;
         const userLon = position.coords.longitude;
 
         const distanciaKm = calcularDistancia(userLat, userLon, restLat, restLon);
         const distanciaMetros = distanciaKm * 1000;
+        console.log(`6. Distancia calculada: ${distanciaMetros.toFixed(2)} metros.`);
 
-        if (distanciaMetros <= radioAviso) {
+        if (distanciaMetros <= radio_aviso) {
           const nuevosPuntos = puntos + 2;
           const tienePremio = nuevosPuntos >= 20;
 
-          // 2. Actualizar puntos del cliente en Supabase
           const { error: errorUpdate } = await supabase
             .from('clientes')
             .update({
               puntos: nuevosPuntos,
-              ultima_visita: new Date().toISOString(), // Supabase usa strings ISO para timestamps
+              ultima_visita: new Date().toISOString(),
               reclamo_pendiente: tienePremio 
             })
             .eq('id', id);
 
           if (errorUpdate) throw errorUpdate;
 
-          // Mensajes de feedback
           if (nuevosPuntos >= 18 && nuevosPuntos < 20) {
             alert("¡Estás a solo una visita de tu premio! 🌟");
           } else if (tienePremio) {
             alert("¡FELICIDADES! 🎉 Tienes 20 puntos. Avisa al personal para reclamar tu premio.");
           } else {
-            alert("¡Gracias por visitarnos! Sumaste 2 puntos. ✨");
+            alert("¡Gracias por visitarnos! Sumaste 2 puntos por tu registro/visita. ✨");
           }
         } else {
-          console.log("📍 Fuera de rango para sumar puntos.");
+          console.log("📍 Fuera de rango para sumar puntos automáticos.");
         }
       }, (error) => {
-        console.warn("❌ Ubicación no disponible:", error.message);
-      }, { enableHighAccuracy: true });
+        console.warn("❌ Error de GPS (Causa):", error.message);
+      }, { 
+        enableHighAccuracy: true, 
+        timeout: 15000,           // Espera hasta 15 segundos
+        maximumAge: 60000         // Acepta una ubicación guardada de hasta 1 minuto de antigüedad
+      });
 
     } catch (err) {
-      console.error("Error al actualizar puntos en Supabase:", err);
+      console.error("Error general en manejarLlegada:", err);
     }
   };
 
@@ -87,7 +94,7 @@ export const SuccessCard = ({
     if (clienteId && restauranteId) {
       manejarLlegada(clienteId, puntosActuales);
     }
-  }, [clienteId]);
+  }, [clienteId, restauranteId]);
 
   const handleCompartir = async () => {
     const nombreRef = encodeURIComponent(nombreCliente);
@@ -118,11 +125,11 @@ export const SuccessCard = ({
       boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
       backgroundColor: '#fff',
       maxWidth: '400px',
-      margin: 'auto'
+      margin: '20px auto'
     }}>
       <div style={{ fontSize: '4.5rem', marginBottom: '1rem' }}>🎁</div>
       
-      <h2 style={{ color: 'var(--accent, #3b82f6)', marginBottom: '0.5rem', fontSize: '1.8rem' }}>
+      <h2 style={{ color: '#3b82f6', marginBottom: '0.5rem', fontSize: '1.8rem' }}>
         ¡LISTO, {nombreCliente?.toUpperCase()}!
       </h2>
       
@@ -133,7 +140,6 @@ export const SuccessCard = ({
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         <button 
           onClick={handleCompartir}
-          className="btn-submit"
           style={{ 
             background: '#25D366', 
             color: 'white',
@@ -155,7 +161,6 @@ export const SuccessCard = ({
 
         <button 
           onClick={onClose || (() => window.location.reload())} 
-          className="btn-confirmar"
           style={{ 
             background: '#3b82f6', 
             color: 'white',
