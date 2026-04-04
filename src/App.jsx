@@ -30,15 +30,13 @@ function App() {
   const [isRegisteredNow, setIsRegisteredNow] = useState(false); 
 
   // --- NUEVO: EFECTO PARA CAMBIO DE SEDE DINÁMICO ---
-  // Esto asegura que si el usuario cambia de restaurante en la URL, 
-  // el estado de clienteId se actualice sin recargar la página.
   useEffect(() => {
     const registros = JSON.parse(localStorage.getItem("bistro_multisede") || "{}");
     const idEnEstaSede = registros[restauranteID] || null;
     if (idEnEstaSede !== clienteId) {
       setClienteId(idEnEstaSede);
     }
-  }, [restauranteID]);
+  }, [restauranteID, clienteId]);
 
   // --- OTROS ESTADOS ---
   const [referidoPor, setReferidoPor] = useState("");
@@ -49,18 +47,19 @@ function App() {
     if (ref) setReferidoPor(ref);
   }, [params]);
 
-  // --- CARGA DE DATOS Y SUSCRIPCIÓN ---
+  // --- CARGA DE DATOS Y SUSCRIPCIÓN (TABLA CONFIGURACION) ---
   useEffect(() => {
     if (!restauranteID) return;
 
+    // Suscripción Realtime a la tabla configuracion
     const channel = supabase
-      .channel(`public:restaurantes:${restauranteID}`)
+      .channel(`public:configuracion:${restauranteID}`)
       .on(
         'postgres_changes',
         { 
           event: 'UPDATE', 
           schema: 'public', 
-          table: 'restaurantes', 
+          table: 'configuracion', 
           filter: `nombre=eq.${restauranteID}` 
         },
         (payload) => {
@@ -72,15 +71,18 @@ function App() {
 
     const loadData = async () => {
       const { data, error } = await supabase
-        .from('restaurantes')
+        .from('configuracion')
         .select('*')
-        .eq('nombre', restauranteID)
+        // Usamos .ilike para que la búsqueda ignore mayúsculas/minúsculas
+        .ilike('nombre', restauranteID) 
         .maybeSingle();
 
       if (error) {
-        console.error("Error cargando restaurante:", error);
+        console.error("Error cargando configuración:", error);
       } else if (data) {
         setBistroLoc(data);
+      } else {
+        console.warn("No se encontró configuración para:", restauranteID);
       }
     };
 
@@ -114,6 +116,8 @@ function App() {
     mensaje: bistroLoc?.mensaje_promo || 'CORTESÍA DISPONIBLE',
     nombreBistro: bistroLoc?.nombre || restauranteID 
   }), [bistroLoc, restauranteID]);
+
+  // --- RENDERIZADO ---
 
   if (!bistroLoc) {
     return (
@@ -168,7 +172,7 @@ function App() {
       <main className="animate-fade-in" style={{ marginTop: '2rem' }}>
         {clienteId ? (
           <UserDashboard 
-            restauranteId={restauranteID} 
+            restauranteId={bistroLoc.id} // Usamos el UUID real de la tabla
             clienteId={clienteId} 
             distancia={distancia}
             esCerca={esCerca}
@@ -176,7 +180,7 @@ function App() {
           />
         ) : (
           <RegistrationForm 
-            restaurantId={bistroLoc.id} 
+            restaurantId={bistroLoc.id} // Usamos el UUID real de la tabla
             referidoPor={referidoPor} 
             onSuccess={(id, nombre) => handleSuccess(id, nombre)} 
           />
@@ -184,7 +188,7 @@ function App() {
       </main>
       
       <footer className="version-footer" style={{ marginTop: '4rem', opacity: 0.4, textAlign: 'center', fontSize: '10px' }}>
-        BISTRO CONNECT v2.5 - {config.nombreBistro}
+        BISTRO CONNECT v2.6 - {config.nombreBistro}
       </footer>
     </div>
   );
