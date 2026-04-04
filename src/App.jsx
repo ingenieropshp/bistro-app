@@ -28,6 +28,35 @@ function App() {
   
   const [nombreCliente, setNombreCliente] = useState(""); 
   const [isRegisteredNow, setIsRegisteredNow] = useState(false); 
+  const [isVerifyingUser, setIsVerifyingUser] = useState(true); // Nuevo: Para evitar bucles de carga
+
+  // --- SOLUCIÓN: VERIFICACIÓN DE EXISTENCIA DEL USUARIO ---
+  useEffect(() => {
+    const verificarUsuarioEnDB = async () => {
+      if (!clienteId) {
+        setIsVerifyingUser(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('clientes')
+        .select('id')
+        .eq('id', clienteId)
+        .maybeSingle();
+
+      // Si el usuario fue eliminado en el Admin, limpiamos el rastro local
+      if (error || !data) {
+        console.warn("Usuario no encontrado en DB, limpiando sesión local...");
+        const registros = JSON.parse(localStorage.getItem("bistro_multisede") || "{}");
+        delete registros[restauranteID];
+        localStorage.setItem("bistro_multisede", JSON.stringify(registros));
+        setClienteId(null);
+      }
+      setIsVerifyingUser(false);
+    };
+
+    verificarUsuarioEnDB();
+  }, [clienteId, restauranteID]);
 
   // --- NUEVO: EFECTO PARA CAMBIO DE SEDE DINÁMICO ---
   useEffect(() => {
@@ -47,46 +76,45 @@ function App() {
     if (ref) setReferidoPor(ref);
   }, [params]);
 
-  // --- CARGA DE DATOS Y SUSCRIPCIÓN (TABLA CONFIGURACION) ---
+  // --- CARGA DE DATOS Y SUSCRIPCIÓN CORREGIDA ---
   useEffect(() => {
     if (!restauranteID) return;
 
-    // Suscripción Realtime a la tabla configuracion
+    // 1. Carga inicial de datos
+    const loadData = async () => {
+      const { data, error } = await supabase
+        .from('configuracion')
+        .select('*')
+        .ilike('nombre', restauranteID) 
+        .maybeSingle();
+
+      if (data) {
+        setBistroLoc(data);
+      }
+    };
+
+    loadData();
+
+    // 2. Suscripción Realtime (Filtro corregido para usar el nombre de la sede)
     const channel = supabase
-      .channel(`public:configuracion:${restauranteID}`)
+      .channel(`public:configuracion:sede:${restauranteID}`)
       .on(
         'postgres_changes',
         { 
           event: 'UPDATE', 
           schema: 'public', 
-          table: 'configuracion', 
-          filter: `nombre=eq.${restauranteID}` 
+          table: 'configuracion'
+          // Quitamos el filtro inline si da problemas y filtramos en el callback
         },
         (payload) => {
-          console.log("Cambio detectado en Realtime:", payload.new);
-          setBistroLoc(payload.new);
+          // Verificamos que el cambio pertenezca a esta sede
+          if (payload.new.nombre?.toLowerCase() === restauranteID.toLowerCase()) {
+            console.log("📍 Ubicación actualizada por Admin:", payload.new);
+            setBistroLoc(payload.new);
+          }
         }
       )
       .subscribe();
-
-    const loadData = async () => {
-      const { data, error } = await supabase
-        .from('configuracion')
-        .select('*')
-        // Usamos .ilike para que la búsqueda ignore mayúsculas/minúsculas
-        .ilike('nombre', restauranteID) 
-        .maybeSingle();
-
-      if (error) {
-        console.error("Error cargando configuración:", error);
-      } else if (data) {
-        setBistroLoc(data);
-      } else {
-        console.warn("No se encontró configuración para:", restauranteID);
-      }
-    };
-
-    loadData();
 
     return () => {
       supabase.removeChannel(channel);
@@ -104,8 +132,6 @@ function App() {
     registros[restauranteID] = nuevoId;
     
     localStorage.setItem("bistro_multisede", JSON.stringify(registros));
-    localStorage.setItem("clienteId", nuevoId); 
-    
     setClienteId(nuevoId);
     setNombreCliente(nombre);
     setIsRegisteredNow(true); 
@@ -119,11 +145,13 @@ function App() {
 
   // --- RENDERIZADO ---
 
-  if (!bistroLoc) {
+  // Si estamos conectando a la sede o verificando si el usuario aún existe
+  if (!bistroLoc || isVerifyingUser) {
     return (
-      <div className="main-wrapper" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <div style={{ textAlign: 'center', opacity: 0.6 }}>
-          ⌛ Conectando con {restauranteID}...
+      <div className="main-wrapper" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <div className="loader-spinner"></div>
+        <div style={{ textAlign: 'center', opacity: 0.6, marginTop: '1rem' }}>
+          ⌛ Sincronizando con {restauranteID}...
         </div>
       </div>
     );
@@ -153,6 +181,7 @@ function App() {
 
       {geoError && <div className="error-alert">⚠️ {geoError}</div>}
 
+      {/* Badge de Proximidad */}
       {typeof distancia === 'number' ? (
         <div className={`proximity-badge ${esCerca ? 'near' : ''}`}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', justifyContent: 'center' }}>
@@ -172,7 +201,7 @@ function App() {
       <main className="animate-fade-in" style={{ marginTop: '2rem' }}>
         {clienteId ? (
           <UserDashboard 
-            restauranteId={bistroLoc.id} // Usamos el UUID real de la tabla
+            restauranteId={bistroLoc.id} 
             clienteId={clienteId} 
             distancia={distancia}
             esCerca={esCerca}
@@ -180,7 +209,7 @@ function App() {
           />
         ) : (
           <RegistrationForm 
-            restaurantId={bistroLoc.id} // Usamos el UUID real de la tabla
+            restaurantId={bistroLoc.id} 
             referidoPor={referidoPor} 
             onSuccess={(id, nombre) => handleSuccess(id, nombre)} 
           />
